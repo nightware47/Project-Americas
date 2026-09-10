@@ -1,7 +1,7 @@
 --!strict
--- PhoneUI.lua
--- Native Roblox Luau UI Component for Sky Phone (iOS 17/18 Inset Grouped / Dynamic Island Architecture)
--- Location: roblox/components/PhoneUI.lua
+-- PhoneUI.luau
+-- High-Fidelity Native Roblox Luau UI Component for Sky Phone (Sky Systems iOS 17/18 Architecture)
+-- Location: roblox/phone/PhoneUI.luau
 
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -13,52 +13,8 @@ local PhoneTheme = require(currentFolder:WaitForChild("PhoneTheme") :: ModuleScr
 local PhoneUI = {}
 PhoneUI.__index = PhoneUI
 
-export type PhoneState = {
-	IsOpen: boolean,
-	IsLocked: boolean,
-	CurrentApp: string?,
-	ActiveCall: { Contact: string, Number: string, StartTime: number }?,
-	UnreadMessages: number,
-	Balance: number,
-	Cash: number,
-	AirplaneMode: boolean,
-	WifiEnabled: boolean,
-	BluetoothEnabled: boolean,
-	DarkMode: boolean,
-}
-
-function PhoneUI.new(parentGui: ScreenGui?)
-	local self = setmetatable({}, PhoneUI)
-
-	self.State = {
-		IsOpen = false,
-		IsLocked = true,
-		CurrentApp = nil,
-		ActiveCall = nil,
-		UnreadMessages = 2,
-		Balance = 12540,
-		Cash = 340,
-		AirplaneMode = false,
-		WifiEnabled = true,
-		BluetoothEnabled = true,
-		DarkMode = true,
-	} :: PhoneState
-
-	-- Callbacks to be hooked by PhoneController
-	self.OnCallStarted = nil :: ((number: string) -> ())?
-	self.OnCallEnded = nil :: (() -> ())?
-	self.OnMessageSent = nil :: ((recipient: string, text: string) -> ())?
-	self.OnTransferMoney = nil :: ((recipient: string, amount: number) -> ())?
-	self.OnVehicleAction = nil :: ((vehicleId: string, action: string) -> ())?
-
-	self:BuildUI(parentGui)
-	self:StartClockLoop()
-
-	return self
-end
-
 --------------------------------------------------------------------------------
--- Helper UI Element Constructors
+-- Helpers
 --------------------------------------------------------------------------------
 local function makeCorner(radius: number, parent: Instance): UICorner
 	local corner = Instance.new("UICorner")
@@ -67,11 +23,10 @@ local function makeCorner(radius: number, parent: Instance): UICorner
 	return corner
 end
 
-local function makeStroke(color: Color3, thickness: number, parent: Instance, transparency: number?): UIStroke
+local function makeStroke(color: Color3, thickness: number, parent: Instance): UIStroke
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = color
 	stroke.Thickness = thickness
-	stroke.Transparency = transparency or 0
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = parent
 	return stroke
@@ -88,184 +43,252 @@ local function makePadding(top: number, bottom: number, left: number, right: num
 end
 
 --------------------------------------------------------------------------------
--- UI Construction
+-- Constructor
 --------------------------------------------------------------------------------
-function PhoneUI:BuildUI(parentGui: ScreenGui?)
-	local gui = parentGui
-	if not gui then
-		gui = Instance.new("ScreenGui")
-		gui.Name = "SkyPhoneGui"
-		gui.ResetOnSpawn = false
-		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		gui.DisplayOrder = 100
-		local localPlayer = Players.LocalPlayer
-		if localPlayer and localPlayer:FindFirstChild("PlayerGui") then
-			gui.Parent = localPlayer.PlayerGui
-		end
-	end
-	self.Gui = gui
+function PhoneUI.new(parentGui: ScreenGui)
+	local self = setmetatable({}, PhoneUI)
 
-	local D = PhoneTheme.Dimensions
+	self.ParentGui = parentGui
+	self.State = {
+		IsOpen = false,
+		IsLocked = true,
+		CurrentApp = nil :: string?,
+		Balance = 15450,
+		BatteryPercent = 94,
+		SignalBars = 4,
+		WifiConnected = true,
+		ActiveCall = nil :: { Number: string, StartTime: number }?,
+		DialedNumber = "",
+		Volume = 0.75,
+		Brightness = 1.0,
+		FlashlightOn = false,
+		AirplaneMode = false,
+		BluetoothOn = true,
+		ControlCenterOpen = false,
+		IslandExpanded = false,
+		IsPlayingMusic = false,
+		CurrentSong = { Title = "Blinding Lights", Artist = "The Weeknd" },
+		SelectedFrame = "SpaceGray",
+		SelectedWallpaper = "DeepMesh",
+	}
+
+	-- Callbacks
+	self.OnCallStarted = nil :: ((number: string) -> ())?
+	self.OnCallEnded = nil :: (() -> ())?
+	self.OnMessageSent = nil :: ((recipient: string, text: string) -> ())?
+	self.OnTransferMoney = nil :: ((recipient: string, amount: number) -> ())?
+	self.OnVehicleAction = nil :: ((vehicleId: string, action: string) -> ())?
+
+	-- Containers
+	self.AppContainers = {} :: { [string]: Frame }
+
+	self:BuildUI()
+	self:StartClockLoop()
+
+	return self
+end
+
+--------------------------------------------------------------------------------
+-- Build UI Hierarchy
+--------------------------------------------------------------------------------
+function PhoneUI:BuildUI()
 	local C = PhoneTheme.Colors
+	local D = PhoneTheme.Dimensions
 
-	-- 1. Outer Phone Chassis (Hardware Frame)
-	local chassis = Instance.new("Frame")
-	chassis.Name = "PhoneChassis"
-	chassis.Size = UDim2.new(0, D.PhoneWidth, 0, D.PhoneHeight)
-	chassis.AnchorPoint = Vector2.new(1, 1)
-	chassis.Position = UDim2.new(1, -24, 1, 680) -- Hidden off-screen by default
-	chassis.BackgroundColor3 = C.PhoneBezel
-	chassis.BorderSizePixel = 0
-	chassis.ClipsDescendants = false
-	chassis.Parent = gui
-	self.Chassis = chassis
+	-- 1. Outer Container
+	local root = Instance.new("Frame")
+	root.Name = "SkyPhoneRoot"
+	root.Size = UDim2.new(0, D.PhoneWidth, 0, D.PhoneHeight)
+	root.AnchorPoint = Vector2.new(1, 1)
+	root.Position = UDim2.new(1, -32, 1, 700) -- Hidden off-screen by default
+	root.BackgroundTransparency = 1
+	root.Parent = self.ParentGui
+	self.Root = root
 
-	makeCorner(D.BezelRadius, chassis)
-	makeStroke(C.PhoneBorder, 2.5, chassis)
+	-- 2. Hardware Chassis (Bezel)
+	local bezel = Instance.new("Frame")
+	bezel.Name = "PhoneBezel"
+	bezel.Size = UDim2.new(1, 0, 1, 0)
+	bezel.BackgroundColor3 = C.Frames.SpaceGray
+	bezel.BorderSizePixel = 0
+	bezel.Parent = root
+	self.Bezel = bezel
+	makeCorner(D.BezelRadius, bezel)
+	makeStroke(C.PhoneBorder, 2, bezel)
 
-	-- Outer Glass Bevel Effect
-	local bevelHighlight = Instance.new("Frame")
-	bevelHighlight.Name = "BevelHighlight"
-	bevelHighlight.Size = UDim2.new(1, -4, 1, -4)
-	bevelHighlight.Position = UDim2.new(0, 2, 0, 2)
-	bevelHighlight.BackgroundTransparency = 1
-	bevelHighlight.BorderSizePixel = 0
-	bevelHighlight.Parent = chassis
-	makeCorner(D.BezelRadius - 2, bevelHighlight)
-	makeStroke(Color3.fromRGB(70, 70, 80), 1, bevelHighlight, 0.6)
+	-- Bevel highlight
+	local bevel = Instance.new("Frame")
+	bevel.Name = "BevelHighlight"
+	bevel.Size = UDim2.new(1, -2, 1, -2)
+	bevel.Position = UDim2.new(0, 1, 0, 1)
+	bevel.BackgroundTransparency = 1
+	bevel.BorderSizePixel = 0
+	bevel.Parent = bezel
+	makeCorner(D.BezelRadius - 1, bevel)
+	makeStroke(Color3.fromRGB(80, 80, 95), 1, bevel)
 
-	-- 2. Inner Screen Container (CanvasGroup for perfect curved corner clipping)
+	-- 3. Screen CanvasGroup (Perfect Curved Corner Masking)
 	local screen = Instance.new("CanvasGroup")
-	screen.Name = "Screen"
-	screen.Size = UDim2.new(1, -12, 1, -12)
-	screen.Position = UDim2.new(0, 6, 0, 6)
+	screen.Name = "PhoneScreen"
+	screen.Size = UDim2.new(1, -(D.BezelPadding * 2), 1, -(D.BezelPadding * 2))
+	screen.Position = UDim2.new(0, D.BezelPadding, 0, D.BezelPadding)
 	screen.BackgroundColor3 = C.ScreenBg
 	screen.BorderSizePixel = 0
 	screen.GroupTransparency = 0
-	screen.Parent = chassis
+	screen.Parent = bezel
 	self.Screen = screen
 	makeCorner(D.ScreenRadius, screen)
 
-	-- Screen Wallpaper
+	-- 4. Dynamic Mesh Gradient Wallpaper
 	local wallpaper = Instance.new("Frame")
-	wallpaper.Name = "Wallpaper"
+	wallpaper.Name = "PhoneWallpaper"
 	wallpaper.Size = UDim2.new(1, 0, 1, 0)
 	wallpaper.BackgroundColor3 = C.WallpaperDark
 	wallpaper.BorderSizePixel = 0
+	wallpaper.ZIndex = 1
 	wallpaper.Parent = screen
 	self.Wallpaper = wallpaper
 
-	-- Wallpaper Gradient
-	local wallGrad = Instance.new("UIGradient")
-	wallGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 45, 65)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 24, 38)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 12, 18)),
+	local uigrad = Instance.new("UIGradient")
+	uigrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0.0, C.WallpaperGradient1),
+		ColorSequenceKeypoint.new(0.5, C.WallpaperDark),
+		ColorSequenceKeypoint.new(1.0, C.WallpaperGradient2),
 	})
-	wallGrad.Rotation = 45
-	wallGrad.Parent = wallpaper
+	uigrad.Rotation = 45
+	uigrad.Parent = wallpaper
+	self.WallpaperGradient = uigrad
 
-	-- 3. Dynamic Island (Expandable Hardware Notch)
-	self:BuildDynamicIsland(screen)
-
-	-- 4. Status Bar (Time, Wifi, Battery)
-	self:BuildStatusBar(screen)
-
-	-- 5. Home Springboard (App Grid & Widgets)
+	-- 5. Subsystems
 	self:BuildSpringboard(screen)
-
-	-- 6. Frosted Glass Dock (Persistent Hero Apps)
 	self:BuildDock(screen)
-
-	-- 7. Lock Screen Overlay
-	self:BuildLockScreen(screen)
-
-	-- 8. In-App Screens Container
-	local appContainer = Instance.new("Frame")
-	appContainer.Name = "AppContainer"
-	appContainer.Size = UDim2.new(1, 0, 1, -54)
-	appContainer.Position = UDim2.new(0, 0, 0, 36)
-	appContainer.BackgroundTransparency = 1
-	appContainer.Visible = false
-	appContainer.Parent = screen
-	self.AppContainer = appContainer
-
-	-- 9. Home Indicator (Bottom Swipe Bar)
+	self:BuildStatusBar(screen)
+	self:BuildDynamicIsland(screen)
 	self:BuildHomeIndicator(screen)
-
-	-- 10. Notification Dropdown Banner
+	self:BuildLockScreen(screen)
+	self:BuildControlCenter(screen)
 	self:BuildNotificationBanner(screen)
 
-	-- Build individual App Pages
-	self:BuildPhoneApp()
-	self:BuildMessagesApp()
-	self:BuildBankApp()
-	self:BuildGarageApp()
-	self:BuildSettingsApp()
-	self:BuildNotesApp()
-	self:BuildCameraApp()
+	-- 6. Core Apps
+	self:BuildPhoneApp(screen)
+	self:BuildMessagesApp(screen)
+	self:BuildBankApp(screen)
+	self:BuildGarageApp(screen)
+	self:BuildSettingsApp(screen)
+	self:BuildNotesApp(screen)
+	self:BuildCameraApp(screen)
+	self:BuildCalculatorApp(screen)
+	self:BuildMusicApp(screen)
+	self:BuildCryptoApp(screen)
 end
 
 --------------------------------------------------------------------------------
 -- Dynamic Island
 --------------------------------------------------------------------------------
 function PhoneUI:BuildDynamicIsland(parent: Instance)
-	local D = PhoneTheme.Dimensions
 	local C = PhoneTheme.Colors
+	local D = PhoneTheme.Dimensions
+	local F = PhoneTheme.Fonts
 
-	local island = Instance.new("TextButton")
-	island.Name = "DynamicIsland"
-	island.Size = UDim2.new(0, D.IslandWidth, 0, D.IslandHeight)
-	island.AnchorPoint = Vector2.new(0.5, 0)
-	island.Position = UDim2.new(0.5, 0, 0, 9)
-	island.BackgroundColor3 = C.DynamicIsland
-	island.Text = ""
-	island.AutoButtonColor = false
-	island.BorderSizePixel = 0
-	island.ZIndex = 50
-	island.Parent = parent
-	self.DynamicIsland = island
+	local islandBtn = Instance.new("TextButton")
+	islandBtn.Name = "DynamicIsland"
+	islandBtn.Size = UDim2.new(0, D.IslandWidthCompact, 0, D.IslandHeightCompact)
+	islandBtn.AnchorPoint = Vector2.new(0.5, 0)
+	islandBtn.Position = UDim2.new(0.5, 0, 0, 10)
+	islandBtn.BackgroundColor3 = C.DynamicIsland
+	islandBtn.BorderSizePixel = 0
+	islandBtn.AutoButtonColor = false
+	islandBtn.Text = ""
+	islandBtn.ZIndex = 100
+	islandBtn.Parent = parent
+	self.Island = islandBtn
+	makeCorner(D.IslandRadius, islandBtn)
+	makeStroke(C.IslandStroke, 1, islandBtn)
 
-	makeCorner(D.IslandRadius, island)
-	makeStroke(C.IslandStroke, 1, island, 0.4)
-
-	-- Camera Lens Circle inside Island
+	-- Camera lens
 	local lens = Instance.new("Frame")
-	lens.Name = "Lens"
-	lens.Size = UDim2.new(0, 10, 0, 10)
-	lens.AnchorPoint = Vector2.new(1, 0.5)
-	lens.Position = UDim2.new(1, -8, 0.5, 0)
-	lens.BackgroundColor3 = Color3.fromRGB(15, 20, 35)
+	lens.Name = "CameraLens"
+	lens.Size = UDim2.new(0, 9, 0, 9)
+	lens.AnchorPoint = Vector2.new(0, 0.5)
+	lens.Position = UDim2.new(0, 9, 0.5, 0)
+	lens.BackgroundColor3 = Color3.fromRGB(15, 20, 30)
 	lens.BorderSizePixel = 0
-	lens.Parent = island
+	lens.Parent = islandBtn
 	makeCorner(5, lens)
 
-	-- Active Status Indicator Dot (Microphone/Call/Camera)
+	-- Activity Dot (Mic / Call / Audio status)
 	local dot = Instance.new("Frame")
-	dot.Name = "StatusDot"
-	dot.Size = UDim2.new(0, 6, 0, 6)
-	dot.AnchorPoint = Vector2.new(0, 0.5)
-	dot.Position = UDim2.new(0, 10, 0.5, 0)
+	dot.Name = "ActivityDot"
+	dot.Size = UDim2.new(0, 7, 0, 7)
+	dot.AnchorPoint = Vector2.new(1, 0.5)
+	dot.Position = UDim2.new(1, -9, 0.5, 0)
 	dot.BackgroundColor3 = C.SystemGreen
-	dot.Visible = false
 	dot.BorderSizePixel = 0
-	dot.Parent = island
-	makeCorner(3, dot)
+	dot.Visible = false
+	dot.Parent = islandBtn
 	self.IslandDot = dot
+	makeCorner(4, dot)
 
-	-- Center Island Text
-	local label = Instance.new("TextLabel")
-	label.Name = "IslandLabel"
-	label.Size = UDim2.new(1, -36, 1, 0)
-	label.Position = UDim2.new(0, 20, 0, 0)
-	label.BackgroundTransparency = 1
-	label.Font = PhoneTheme.Fonts.Bold
-	label.TextSize = 10
-	label.TextColor3 = C.TextPrimary
-	label.Text = ""
-	label.TextTruncate = Enum.TextTruncate.AtEnd
-	label.Parent = island
-	self.IslandLabel = label
+	-- Expandable content container
+	local expandedContent = Instance.new("Frame")
+	expandedContent.Name = "ExpandedContent"
+	expandedContent.Size = UDim2.new(1, -20, 1, 0)
+	expandedContent.Position = UDim2.new(0, 10, 0, 0)
+	expandedContent.BackgroundTransparency = 1
+	expandedContent.Visible = false
+	expandedContent.Parent = islandBtn
+	self.IslandExpandedContent = expandedContent
+
+	local islandTitle = Instance.new("TextLabel")
+	islandTitle.Name = "IslandTitle"
+	islandTitle.Size = UDim2.new(0.65, 0, 0.5, 0)
+	islandTitle.Position = UDim2.new(0, 20, 0, 10)
+	islandTitle.BackgroundTransparency = 1
+	islandTitle.Font = F.Bold
+	islandTitle.TextSize = 13
+	islandTitle.TextColor3 = C.TextPrimary
+	islandTitle.TextXAlignment = Enum.TextXAlignment.Left
+	islandTitle.Text = "Connected Call"
+	islandTitle.Parent = expandedContent
+	self.IslandTitle = islandTitle
+
+	local islandSub = Instance.new("TextLabel")
+	islandSub.Name = "IslandSub"
+	islandSub.Size = UDim2.new(0.65, 0, 0.4, 0)
+	islandSub.Position = UDim2.new(0, 20, 0.5, 0)
+	islandSub.BackgroundTransparency = 1
+	islandSub.Font = F.Regular
+	islandSub.TextSize = 11
+	islandSub.TextColor3 = C.SystemGreen
+	islandSub.TextXAlignment = Enum.TextXAlignment.Left
+	islandSub.Text = "00:00"
+	islandSub.Parent = expandedContent
+	self.IslandSub = islandSub
+
+	-- Tap to toggle expand/collapse
+	islandBtn.MouseButton1Click:Connect(function()
+		self:ToggleDynamicIsland()
+	end)
+end
+
+function PhoneUI:ToggleDynamicIsland()
+	local D = PhoneTheme.Dimensions
+	local T = PhoneTheme.Tweens
+	self.State.IslandExpanded = not self.State.IslandExpanded
+
+	if self.State.IslandExpanded then
+		TweenService:Create(self.Island, T.IslandExpand, {
+			Size = UDim2.new(0, D.IslandWidthExpanded, 0, D.IslandHeightExpanded),
+		}):Play()
+		task.delay(0.1, function()
+			self.IslandExpandedContent.Visible = true
+		end)
+	else
+		self.IslandExpandedContent.Visible = false
+		TweenService:Create(self.Island, T.Snappy, {
+			Size = UDim2.new(0, D.IslandWidthCompact, 0, D.IslandHeightCompact),
+		}):Play()
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -273,260 +296,401 @@ end
 --------------------------------------------------------------------------------
 function PhoneUI:BuildStatusBar(parent: Instance)
 	local C = PhoneTheme.Colors
+	local D = PhoneTheme.Dimensions
 	local F = PhoneTheme.Fonts
 
 	local bar = Instance.new("Frame")
 	bar.Name = "StatusBar"
-	bar.Size = UDim2.new(1, -28, 0, 26)
-	bar.Position = UDim2.new(0, 14, 0, 8)
+	bar.Size = UDim2.new(1, 0, 0, D.StatusBarHeight)
 	bar.BackgroundTransparency = 1
-	bar.ZIndex = 40
+	bar.ZIndex = 90
 	bar.Parent = parent
 
-	-- Time (Top Left)
+	-- Time (Left)
 	local timeLabel = Instance.new("TextLabel")
-	timeLabel.Name = "TimeLabel"
-	timeLabel.Size = UDim2.new(0, 48, 1, 0)
-	timeLabel.Position = UDim2.new(0, 2, 0, 0)
+	timeLabel.Name = "StatusClock"
+	timeLabel.Size = UDim2.new(0, 58, 1, 0)
+	timeLabel.Position = UDim2.new(0, 22, 0, 0)
 	timeLabel.BackgroundTransparency = 1
 	timeLabel.Font = F.Bold
-	timeLabel.TextSize = 12
+	timeLabel.TextSize = 13
 	timeLabel.TextColor3 = C.TextPrimary
 	timeLabel.TextXAlignment = Enum.TextXAlignment.Left
 	timeLabel.Text = "12:00"
 	timeLabel.Parent = bar
-	self.StatusTimeLabel = timeLabel
+	self.StatusClockLabel = timeLabel
 
-	-- Right Icons Stack (Signal, Wifi, Battery)
-	local rightStack = Instance.new("Frame")
-	rightStack.Name = "RightStack"
-	rightStack.Size = UDim2.new(0, 68, 1, 0)
-	rightStack.AnchorPoint = Vector2.new(1, 0)
-	rightStack.Position = UDim2.new(1, 0, 0, 0)
-	rightStack.BackgroundTransparency = 1
-	rightStack.Parent = bar
+	-- Right Platter (Signal, Wifi, Battery) - Clickable to open Control Center!
+	local rightBtn = Instance.new("TextButton")
+	rightBtn.Name = "StatusRightBtn"
+	rightBtn.Size = UDim2.new(0, 80, 1, 0)
+	rightBtn.AnchorPoint = Vector2.new(1, 0)
+	rightBtn.Position = UDim2.new(1, -16, 0, 0)
+	rightBtn.BackgroundTransparency = 1
+	rightBtn.Text = ""
+	rightBtn.Parent = bar
 
-	local list = Instance.new("UIListLayout")
-	list.FillDirection = Enum.FillDirection.Horizontal
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	list.VerticalAlignment = Enum.VerticalAlignment.Center
-	list.Padding = UDim.new(0, 5)
-	list.Parent = rightStack
+	local rightLayout = Instance.new("UIListLayout")
+	rightLayout.FillDirection = Enum.FillDirection.Horizontal
+	rightLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	rightLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	rightLayout.Padding = UDim.new(0, 4)
+	rightLayout.Parent = rightBtn
 
-	-- Cellular Signal Bars
-	local signal = Instance.new("TextLabel")
-	signal.Name = "Signal"
-	signal.Size = UDim2.new(0, 16, 0, 14)
-	signal.BackgroundTransparency = 1
-	signal.Font = F.Bold
-	signal.TextSize = 11
-	signal.TextColor3 = C.TextPrimary
-	signal.Text = "📶"
-	signal.Parent = rightStack
+	local batteryLabel = Instance.new("TextLabel")
+	batteryLabel.Size = UDim2.new(0, 32, 1, 0)
+	batteryLabel.BackgroundTransparency = 1
+	batteryLabel.Font = F.Medium
+	batteryLabel.TextSize = 11
+	batteryLabel.TextColor3 = C.TextPrimary
+	batteryLabel.Text = "94% 🔋"
+	batteryLabel.Parent = rightBtn
+	self.StatusBatteryLabel = batteryLabel
 
-	-- Wi-Fi Icon
-	local wifi = Instance.new("TextLabel")
-	wifi.Name = "Wifi"
-	wifi.Size = UDim2.new(0, 16, 0, 14)
-	wifi.BackgroundTransparency = 1
-	wifi.Font = F.Bold
-	wifi.TextSize = 11
-	wifi.TextColor3 = C.TextPrimary
-	wifi.Text = "📡"
-	wifi.Parent = rightStack
+	local wifiLabel = Instance.new("TextLabel")
+	wifiLabel.Size = UDim2.new(0, 18, 1, 0)
+	wifiLabel.BackgroundTransparency = 1
+	wifiLabel.Font = F.Regular
+	wifiLabel.TextSize = 12
+	wifiLabel.TextColor3 = C.TextPrimary
+	wifiLabel.Text = "📶"
+	wifiLabel.Parent = rightBtn
 
-	-- Battery Icon (Outer Pill + Inner Fill)
-	local batteryFrame = Instance.new("Frame")
-	batteryFrame.Name = "BatteryFrame"
-	batteryFrame.Size = UDim2.new(0, 22, 0, 11)
-	batteryFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
-	batteryFrame.BorderSizePixel = 0
-	batteryFrame.Parent = rightStack
-	makeCorner(3, batteryFrame)
-	makeStroke(Color3.fromRGB(150, 150, 160), 1, batteryFrame)
-
-	local batteryFill = Instance.new("Frame")
-	batteryFill.Name = "BatteryFill"
-	batteryFill.Size = UDim2.new(0.85, 0, 1, -2)
-	batteryFill.Position = UDim2.new(0, 1, 0, 1)
-	batteryFill.BackgroundColor3 = C.SystemGreen
-	batteryFill.BorderSizePixel = 0
-	batteryFill.Parent = batteryFrame
-	makeCorner(2, batteryFill)
+	rightBtn.MouseButton1Click:Connect(function()
+		self:ToggleControlCenter()
+	end)
 end
 
 --------------------------------------------------------------------------------
--- Home Springboard (App Icon Grid)
+-- Control Center (Pull-down Overlay)
+--------------------------------------------------------------------------------
+function PhoneUI:BuildControlCenter(parent: Instance)
+	local C = PhoneTheme.Colors
+	local F = PhoneTheme.Fonts
+
+	local cc = Instance.new("Frame")
+	cc.Name = "ControlCenter"
+	cc.Size = UDim2.new(1, 0, 1, 0)
+	cc.Position = UDim2.new(0, 0, -1, 0) -- Hidden above
+	cc.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+	cc.BackgroundTransparency = 0.08
+	cc.BorderSizePixel = 0
+	cc.ZIndex = 85
+	cc.Visible = false
+	cc.Parent = parent
+	self.ControlCenterFrame = cc
+
+	local pad = makePadding(52, 20, 18, 18, cc)
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 24)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 18
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Control Center"
+	title.Parent = cc
+
+	-- 2x2 Network Platter
+	local netPlatter = Instance.new("Frame")
+	netPlatter.Size = UDim2.new(0.48, 0, 0, 130)
+	netPlatter.Position = UDim2.new(0, 0, 0, 32)
+	netPlatter.BackgroundColor3 = C.CardBg
+	netPlatter.BorderSizePixel = 0
+	netPlatter.Parent = cc
+	makeCorner(18, netPlatter)
+	makeStroke(C.CardStroke, 1, netPlatter)
+
+	local netGrid = Instance.new("UIGridLayout")
+	netGrid.CellSize = UDim2.new(0, 50, 0, 50)
+	netGrid.CellPadding = UDim2.new(0, 10, 0, 10)
+	netGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	netGrid.VerticalAlignment = Enum.VerticalAlignment.Center
+	netGrid.Parent = netPlatter
+
+	local function makeCcBtn(glyph: string, activeColor: Color3, isActive: boolean, onClick: () -> ()): TextButton
+		local btn = Instance.new("TextButton")
+		btn.BackgroundColor3 = isActive and activeColor or C.KeypadNumberBg
+		btn.Text = glyph
+		btn.Font = F.Bold
+		btn.TextSize = 18
+		btn.BorderSizePixel = 0
+		btn.Parent = netPlatter
+		makeCorner(25, btn)
+		btn.MouseButton1Click:Connect(onClick)
+		return btn
+	end
+
+	local bAirplane = makeCcBtn("✈️", C.SystemOrange, self.State.AirplaneMode, function()
+		self.State.AirplaneMode = not self.State.AirplaneMode
+		self:ShowNotification("Airplane Mode", self.State.AirplaneMode and "Turned On" or "Turned Off", "✈️")
+	end)
+
+	local bWifi = makeCcBtn("📶", C.SystemBlue, self.State.WifiConnected, function()
+		self.State.WifiConnected = not self.State.WifiConnected
+		self:ShowNotification("Wi-Fi", self.State.WifiConnected and "Connected" or "Disconnected", "📶")
+	end)
+
+	local bBluetooth = makeCcBtn("🔷", C.SystemBlue, self.State.BluetoothOn, function()
+		self.State.BluetoothOn = not self.State.BluetoothOn
+		self:ShowNotification("Bluetooth", self.State.BluetoothOn and "On" or "Off", "🔷")
+	end)
+
+	local bData = makeCcBtn("📡", C.SystemGreen, true, function()
+		self:ShowNotification("Cellular Data", "5G Ultra Active", "📡")
+	end)
+
+	-- Media Player Platter (Top Right)
+	local mediaPlatter = Instance.new("Frame")
+	mediaPlatter.Size = UDim2.new(0.48, 0, 0, 130)
+	mediaPlatter.Position = UDim2.new(0.52, 0, 0, 32)
+	mediaPlatter.BackgroundColor3 = C.CardBg
+	mediaPlatter.BorderSizePixel = 0
+	mediaPlatter.Parent = cc
+	makeCorner(18, mediaPlatter)
+	makeStroke(C.CardStroke, 1, mediaPlatter)
+
+	local mTitle = Instance.new("TextLabel")
+	mTitle.Size = UDim2.new(1, -16, 0, 20)
+	mTitle.Position = UDim2.new(0, 8, 0, 12)
+	mTitle.BackgroundTransparency = 1
+	mTitle.Font = F.Bold
+	mTitle.TextSize = 12
+	mTitle.TextColor3 = C.TextPrimary
+	mTitle.TextTruncate = Enum.TextTruncate.AtEnd
+	mTitle.Text = self.State.CurrentSong.Title
+	mTitle.Parent = mediaPlatter
+
+	local mArtist = Instance.new("TextLabel")
+	mArtist.Size = UDim2.new(1, -16, 0, 16)
+	mArtist.Position = UDim2.new(0, 8, 0, 32)
+	mArtist.BackgroundTransparency = 1
+	mArtist.Font = F.Regular
+	mArtist.TextSize = 10
+	mArtist.TextColor3 = C.TextSecondary
+	mArtist.Text = self.State.CurrentSong.Artist
+	mArtist.Parent = mediaPlatter
+
+	local playBtn = Instance.new("TextButton")
+	playBtn.Size = UDim2.new(0, 44, 0, 44)
+	playBtn.Position = UDim2.new(0.5, -22, 0, 68)
+	playBtn.BackgroundColor3 = C.SystemBlue
+	playBtn.Text = "▶️"
+	playBtn.Font = F.Bold
+	playBtn.TextSize = 16
+	playBtn.BorderSizePixel = 0
+	playBtn.Parent = mediaPlatter
+	makeCorner(22, playBtn)
+
+	playBtn.MouseButton1Click:Connect(function()
+		self.State.IsPlayingMusic = not self.State.IsPlayingMusic
+		playBtn.Text = self.State.IsPlayingMusic and "⏸️" or "▶️"
+		self.IslandDot.Visible = self.State.IsPlayingMusic
+		self.IslandTitle.Text = self.State.CurrentSong.Title
+		self.IslandSub.Text = self.State.CurrentSong.Artist
+	end)
+
+	-- Sliders Row (Brightness & Volume)
+	local slidersFrame = Instance.new("Frame")
+	slidersFrame.Size = UDim2.new(1, 0, 0, 130)
+	slidersFrame.Position = UDim2.new(0, 0, 0, 175)
+	slidersFrame.BackgroundTransparency = 1
+	slidersFrame.Parent = cc
+
+	local function makeSlider(xScale: number, icon: string, currentVal: number, onUpdate: (val: number) -> ()): Frame
+		local capsule = Instance.new("Frame")
+		capsule.Size = UDim2.new(0.48, 0, 1, 0)
+		capsule.Position = UDim2.new(xScale, 0, 0, 0)
+		capsule.BackgroundColor3 = C.SliderBg
+		capsule.BorderSizePixel = 0
+		capsule.Parent = slidersFrame
+		makeCorner(20, capsule)
+
+		local fill = Instance.new("Frame")
+		fill.Size = UDim2.new(1, 0, currentVal, 0)
+		fill.AnchorPoint = Vector2.new(0, 1)
+		fill.Position = UDim2.new(0, 0, 1, 0)
+		fill.BackgroundColor3 = Color3.fromRGB(240, 240, 245)
+		fill.BorderSizePixel = 0
+		fill.Parent = capsule
+		makeCorner(20, fill)
+
+		local ico = Instance.new("TextLabel")
+		ico.Size = UDim2.new(1, 0, 0, 30)
+		ico.AnchorPoint = Vector2.new(0.5, 1)
+		ico.Position = UDim2.new(0.5, 0, 1, -8)
+		ico.BackgroundTransparency = 1
+		ico.Text = icon
+		ico.Font = F.Bold
+		ico.TextSize = 16
+		ico.Parent = capsule
+
+		return capsule
+	end
+
+	makeSlider(0, "☀️", 0.85, function() end)
+	makeSlider(0.52, "🔊", 0.70, function() end)
+
+	-- Close Button at bottom
+	local closeBtn = Instance.new("TextButton")
+	closeBtn.Size = UDim2.new(1, 0, 0, 44)
+	closeBtn.Position = UDim2.new(0, 0, 1, -54)
+	closeBtn.BackgroundColor3 = C.CardBg
+	closeBtn.Text = "Done"
+	closeBtn.Font = F.Bold
+	closeBtn.TextSize = 14
+	closeBtn.TextColor3 = C.SystemBlue
+	closeBtn.BorderSizePixel = 0
+	closeBtn.Parent = cc
+	makeCorner(16, closeBtn)
+	makeStroke(C.CardStroke, 1, closeBtn)
+
+	closeBtn.MouseButton1Click:Connect(function()
+		self:ToggleControlCenter()
+	end)
+end
+
+function PhoneUI:ToggleControlCenter()
+	local T = PhoneTheme.Tweens
+	self.State.ControlCenterOpen = not self.State.ControlCenterOpen
+
+	if self.State.ControlCenterOpen then
+		self.ControlCenterFrame.Visible = true
+		TweenService:Create(self.ControlCenterFrame, T.SlowSlide, {
+			Position = UDim2.new(0, 0, 0, 0)
+		}):Play()
+	else
+		local tw = TweenService:Create(self.ControlCenterFrame, T.SlowSlide, {
+			Position = UDim2.new(0, 0, -1, 0)
+		})
+		tw:Play()
+		tw.Completed:Connect(function()
+			if not self.State.ControlCenterOpen then
+				self.ControlCenterFrame.Visible = false
+			end
+		end)
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Springboard (Home App Grid)
 --------------------------------------------------------------------------------
 function PhoneUI:BuildSpringboard(parent: Instance)
 	local C = PhoneTheme.Colors
-	local F = PhoneTheme.Fonts
 	local D = PhoneTheme.Dimensions
+	local F = PhoneTheme.Fonts
 
-	local board = Instance.new("ScrollingFrame")
-	board.Name = "Springboard"
-	board.Size = UDim2.new(1, 0, 1, -114)
-	board.Position = UDim2.new(0, 0, 0, 38)
-	board.BackgroundTransparency = 1
-	board.ScrollBarThickness = 0
-	board.CanvasSize = UDim2.new(0, 0, 0, 480)
-	board.BorderSizePixel = 0
-	board.Parent = parent
-	self.Springboard = board
+	local springboard = Instance.new("Frame")
+	springboard.Name = "Springboard"
+	springboard.Size = UDim2.new(1, 0, 1, -(D.StatusBarHeight + D.DockHeight + 20))
+	springboard.Position = UDim2.new(0, 0, 0, D.StatusBarHeight + 8)
+	springboard.BackgroundTransparency = 1
+	springboard.ZIndex = 10
+	springboard.Parent = parent
+	self.Springboard = springboard
 
-	makePadding(22, 12, 16, 16, board)
+	-- Search Capsule (iOS Spotlight Pill)
+	local searchPill = Instance.new("TextButton")
+	searchPill.Name = "SpotlightPill"
+	searchPill.Size = UDim2.new(0, 96, 0, 26)
+	searchPill.AnchorPoint = Vector2.new(0.5, 0)
+	searchPill.Position = UDim2.new(0.5, 0, 0, 6)
+	searchPill.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+	searchPill.BackgroundTransparency = 0.3
+	searchPill.BorderSizePixel = 0
+	searchPill.Text = "🔍 Search"
+	searchPill.Font = F.Medium
+	searchPill.TextSize = 11
+	searchPill.TextColor3 = C.TextSecondary
+	searchPill.Parent = springboard
+	makeCorner(13, searchPill)
 
-	-- Search Bar Widget at Top of Springboard
-	local searchCard = Instance.new("TextButton")
-	searchCard.Name = "SearchPill"
-	searchCard.Size = UDim2.new(1, 0, 0, 34)
-	searchCard.BackgroundColor3 = Color3.fromRGB(30, 32, 40)
-	searchCard.BackgroundTransparency = 0.35
-	searchCard.Text = ""
-	searchCard.AutoButtonColor = false
-	searchCard.BorderSizePixel = 0
-	searchCard.Parent = board
-	makeCorner(17, searchCard)
-	makeStroke(C.CardStroke, 1, searchCard, 0.5)
-
-	local searchIcon = Instance.new("TextLabel")
-	searchIcon.Name = "SearchIcon"
-	searchIcon.Size = UDim2.new(0, 24, 1, 0)
-	searchIcon.Position = UDim2.new(0, 10, 0, 0)
-	searchIcon.BackgroundTransparency = 1
-	searchIcon.Font = F.Bold
-	searchIcon.TextSize = 13
-	searchIcon.TextColor3 = C.TextSecondary
-	searchIcon.Text = "🔍"
-	searchIcon.Parent = searchCard
-
-	local searchLabel = Instance.new("TextLabel")
-	searchLabel.Name = "SearchLabel"
-	searchLabel.Size = UDim2.new(1, -44, 1, 0)
-	searchLabel.Position = UDim2.new(0, 34, 0, 0)
-	searchLabel.BackgroundTransparency = 1
-	searchLabel.Font = F.Medium
-	searchLabel.TextSize = 12
-	searchLabel.TextColor3 = C.TextSecondary
-	searchLabel.TextXAlignment = Enum.TextXAlignment.Left
-	searchLabel.Text = "Search apps & contacts..."
-	searchLabel.Parent = searchCard
-
-	-- 4-Column Grid for Apps
-	local gridContainer = Instance.new("Frame")
-	gridContainer.Name = "GridContainer"
-	gridContainer.Size = UDim2.new(1, 0, 0, 380)
-	gridContainer.Position = UDim2.new(0, 0, 0, 48)
-	gridContainer.BackgroundTransparency = 1
-	gridContainer.BorderSizePixel = 0
-	gridContainer.Parent = board
+	-- 4-Column Grid Frame
+	local gridFrame = Instance.new("Frame")
+	gridFrame.Name = "AppGrid"
+	gridFrame.Size = UDim2.new(1, -24, 1, -44)
+	gridFrame.Position = UDim2.new(0, 12, 0, 42)
+	gridFrame.BackgroundTransparency = 1
+	gridFrame.Parent = springboard
 
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.new(0, 58, 0, 76)
-	grid.CellPadding = UDim2.new(0, 12, 0, 14)
+	grid.CellSize = UDim2.new(0, D.IconSize, 0, D.IconSize + 18)
+	grid.CellPadding = UDim2.new(0, D.IconGridGapX, 0, D.IconGridGapY)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = gridContainer
+	grid.Parent = gridFrame
 
-	-- Populate Apps (excluding dock apps)
-	local order = 0
-	for _, app in ipairs(PhoneTheme.Apps) do
-		if not app.InDock then
-			order += 1
-			self:CreateAppIcon(app, gridContainer, order)
+	for idx, appDef in ipairs(PhoneTheme.Apps) do
+		if not appDef.Dock then
+			self:CreateAppIcon(appDef, gridFrame, idx)
 		end
 	end
 end
 
-function PhoneUI:CreateAppIcon(appData: any, parent: Instance, order: number): TextButton
+function PhoneUI:CreateAppIcon(appDef: any, parent: Instance, order: number)
 	local C = PhoneTheme.Colors
-	local F = PhoneTheme.Fonts
 	local D = PhoneTheme.Dimensions
+	local F = PhoneTheme.Fonts
 
-	local button = Instance.new("TextButton")
-	button.Name = "App_" .. appData.Id
-	button.Size = UDim2.new(0, 58, 0, 76)
-	button.BackgroundTransparency = 1
-	button.Text = ""
-	button.AutoButtonColor = false
-	button.LayoutOrder = order
-	button.Parent = parent
+	local item = Instance.new("TextButton")
+	item.Name = "App_" .. appDef.Id
+	item.Size = UDim2.new(0, D.IconSize, 0, D.IconSize + 18)
+	item.BackgroundTransparency = 1
+	item.Text = ""
+	item.LayoutOrder = order
+	item.Parent = parent
 
-	-- Squircle Icon Container
 	local squircle = Instance.new("Frame")
 	squircle.Name = "Squircle"
-	squircle.Size = UDim2.new(0, D.AppIconSize, 0, D.AppIconSize)
-	squircle.AnchorPoint = Vector2.new(0.5, 0)
-	squircle.Position = UDim2.new(0.5, 0, 0, 0)
-	squircle.BackgroundColor3 = appData.BgColor or C.SystemBlue
+	squircle.Size = UDim2.new(0, D.IconSize, 0, D.IconSize)
+	squircle.BackgroundColor3 = appDef.BgColor
 	squircle.BorderSizePixel = 0
-	squircle.Parent = button
-	makeCorner(D.AppIconRadius, squircle)
+	squircle.Parent = item
+	makeCorner(D.IconRadius, squircle)
 
-	-- Icon Glyph / Asset
-	local icon = Instance.new("TextLabel")
-	icon.Name = "Glyph"
-	icon.Size = UDim2.new(1, 0, 1, 0)
-	icon.BackgroundTransparency = 1
-	icon.Font = F.Bold
-	icon.TextSize = 22
-	icon.TextColor3 = appData.IconColor or C.TextPrimary
-	icon.Text = appData.FallbackGlyph or "📱"
-	icon.Parent = squircle
+	local glyph = Instance.new("TextLabel")
+	glyph.Size = UDim2.new(1, 0, 1, 0)
+	glyph.BackgroundTransparency = 1
+	glyph.Text = appDef.Glyph
+	glyph.Font = F.Bold
+	glyph.TextSize = 24
+	glyph.TextColor3 = Color3.fromRGB(255, 255, 255)
+	glyph.Parent = squircle
 
-	-- Unread Notification Badge (Optional)
-	if appData.Id == "messages" and self.State.UnreadMessages > 0 then
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 0, 14)
+	label.Position = UDim2.new(0, 0, 1, -14)
+	label.BackgroundTransparency = 1
+	label.Text = appDef.Name
+	label.Font = F.Medium
+	label.TextSize = 10
+	label.TextColor3 = C.TextPrimary
+	label.Parent = item
+
+	if appDef.Badge and appDef.Badge > 0 then
 		local badge = Instance.new("Frame")
-		badge.Name = "Badge"
-		badge.Size = UDim2.new(0, 18, 0, 18)
+		badge.Size = UDim2.new(0, D.BadgeSize, 0, D.BadgeSize)
 		badge.AnchorPoint = Vector2.new(1, 0)
 		badge.Position = UDim2.new(1, 4, 0, -4)
 		badge.BackgroundColor3 = C.SystemRed
 		badge.BorderSizePixel = 0
-		badge.ZIndex = 5
 		badge.Parent = squircle
 		makeCorner(9, badge)
 
-		local count = Instance.new("TextLabel")
-		count.Name = "Count"
-		count.Size = UDim2.new(1, 0, 1, 0)
-		count.BackgroundTransparency = 1
-		count.Font = F.Bold
-		count.TextSize = 10
-		count.TextColor3 = Color3.new(1, 1, 1)
-		count.Text = tostring(self.State.UnreadMessages)
-		count.Parent = badge
+		local bText = Instance.new("TextLabel")
+		bText.Size = UDim2.new(1, 0, 1, 0)
+		bText.BackgroundTransparency = 1
+		bText.Font = F.Bold
+		bText.TextSize = 10
+		bText.TextColor3 = Color3.fromRGB(255, 255, 255)
+		bText.Text = tostring(appDef.Badge)
+		bText.Parent = badge
 	end
 
-	-- App Label
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.new(1, 16, 0, 16)
-	title.AnchorPoint = Vector2.new(0.5, 1)
-	title.Position = UDim2.new(0.5, 0, 1, 0)
-	title.BackgroundTransparency = 1
-	title.Font = F.Medium
-	title.TextSize = 11
-	title.TextColor3 = C.TextPrimary
-	title.TextTruncate = Enum.TextTruncate.AtEnd
-	title.Text = appData.Title
-	title.Parent = button
-
-	-- Click / Press Animation
-	button.MouseButton1Down:Connect(function()
-		TweenService:Create(squircle, PhoneTheme.Tweens.Fast, {
-			Size = UDim2.new(0, D.AppIconSize - 4, 0, D.AppIconSize - 4)
-		}):Play()
+	item.MouseButton1Click:Connect(function()
+		self:OpenApp(appDef.Id)
 	end)
-
-	button.MouseButton1Up:Connect(function()
-		TweenService:Create(squircle, PhoneTheme.Tweens.Bounce, {
-			Size = UDim2.new(0, D.AppIconSize, 0, D.AppIconSize)
-		}):Play()
-		self:OpenApp(appData.Id)
-	end)
-
-	return button
 end
 
 --------------------------------------------------------------------------------
@@ -537,58 +701,54 @@ function PhoneUI:BuildDock(parent: Instance)
 	local D = PhoneTheme.Dimensions
 
 	local dock = Instance.new("Frame")
-	dock.Name = "Dock"
-	dock.Size = UDim2.new(1, -28, 0, D.DockHeight)
+	dock.Name = "PhoneDock"
+	dock.Size = UDim2.new(1, -20, 0, D.DockHeight)
 	dock.AnchorPoint = Vector2.new(0.5, 1)
-	dock.Position = UDim2.new(0.5, 0, 1, -24)
+	dock.Position = UDim2.new(0.5, 0, 1, -16)
 	dock.BackgroundColor3 = C.DockBg
-	dock.BackgroundTransparency = 0.25
+	dock.BackgroundTransparency = 0.35
 	dock.BorderSizePixel = 0
 	dock.ZIndex = 20
 	dock.Parent = parent
 	self.Dock = dock
+	makeCorner(28, dock)
+	makeStroke(C.CardStroke, 1, dock)
 
-	makeCorner(D.DockRadius, dock)
-	makeStroke(C.CardStroke, 1, dock, 0.4)
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 14)
+	layout.Parent = dock
 
-	local list = Instance.new("UIListLayout")
-	list.FillDirection = Enum.FillDirection.Horizontal
-	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	list.VerticalAlignment = Enum.VerticalAlignment.Center
-	list.Padding = UDim.new(0, 16)
-	list.Parent = dock
+	for idx, appDef in ipairs(PhoneTheme.Apps) do
+		if appDef.Dock then
+			local btn = Instance.new("TextButton")
+			btn.Name = "DockApp_" .. appDef.Id
+			btn.Size = UDim2.new(0, D.IconSize, 0, D.IconSize)
+			btn.BackgroundColor3 = appDef.BgColor
+			btn.BorderSizePixel = 0
+			btn.Text = ""
+			btn.LayoutOrder = idx
+			btn.Parent = dock
+			makeCorner(D.IconRadius, btn)
 
-	for order, app in ipairs(PhoneTheme.Apps) do
-		if app.InDock then
-			local dockBtn = Instance.new("TextButton")
-			dockBtn.Name = "Dock_" .. app.Id
-			dockBtn.Size = UDim2.new(0, D.AppIconSize, 0, D.AppIconSize)
-			dockBtn.BackgroundColor3 = app.BgColor or C.SystemGreen
-			dockBtn.Text = ""
-			dockBtn.AutoButtonColor = false
-			dockBtn.BorderSizePixel = 0
-			dockBtn.Parent = dock
-			makeCorner(D.AppIconRadius, dockBtn)
+			local glyph = Instance.new("TextLabel")
+			glyph.Size = UDim2.new(1, 0, 1, 0)
+			glyph.BackgroundTransparency = 1
+			glyph.Text = appDef.Glyph
+			glyph.TextSize = 24
+			glyph.Parent = btn
 
-			local icon = Instance.new("TextLabel")
-			icon.Name = "Glyph"
-			icon.Size = UDim2.new(1, 0, 1, 0)
-			icon.BackgroundTransparency = 1
-			icon.Font = PhoneTheme.Fonts.Bold
-			icon.TextSize = 22
-			icon.TextColor3 = C.TextPrimary
-			icon.Text = app.FallbackGlyph or "📱"
-			icon.Parent = dockBtn
-
-			dockBtn.MouseButton1Click:Connect(function()
-				self:OpenApp(app.Id)
+			btn.MouseButton1Click:Connect(function()
+				self:OpenApp(appDef.Id)
 			end)
 		end
 	end
 end
 
 --------------------------------------------------------------------------------
--- Lock Screen Overlay
+-- Lock Screen
 --------------------------------------------------------------------------------
 function PhoneUI:BuildLockScreen(parent: Instance)
 	local C = PhoneTheme.Colors
@@ -600,91 +760,63 @@ function PhoneUI:BuildLockScreen(parent: Instance)
 	lock.BackgroundColor3 = Color3.fromRGB(8, 10, 14)
 	lock.BackgroundTransparency = 0.15
 	lock.BorderSizePixel = 0
-	lock.ZIndex = 30
-	lock.Visible = self.State.IsLocked
+	lock.ZIndex = 70
 	lock.Parent = parent
 	self.LockScreen = lock
 
-	-- Lock Icon (Top)
-	local lockIcon = Instance.new("TextLabel")
-	lockIcon.Name = "LockIcon"
-	lockIcon.Size = UDim2.new(1, 0, 0, 24)
-	lockIcon.Position = UDim2.new(0, 0, 0, 48)
-	lockIcon.BackgroundTransparency = 1
-	lockIcon.Font = F.Bold
-	lockIcon.TextSize = 16
-	lockIcon.TextColor3 = C.TextSecondary
-	lockIcon.Text = "🔒"
-	lockIcon.Parent = lock
-
-	-- Date Text
 	local dateLabel = Instance.new("TextLabel")
-	dateLabel.Name = "DateLabel"
 	dateLabel.Size = UDim2.new(1, 0, 0, 20)
-	dateLabel.Position = UDim2.new(0, 0, 0, 74)
+	dateLabel.Position = UDim2.new(0, 0, 0, 58)
 	dateLabel.BackgroundTransparency = 1
 	dateLabel.Font = F.Medium
-	dateLabel.TextSize = 13
+	dateLabel.TextSize = 14
 	dateLabel.TextColor3 = C.TextSecondary
-	dateLabel.Text = "Thursday, September 10"
+	dateLabel.Text = "Wednesday, September 10"
 	dateLabel.Parent = lock
 	self.LockDateLabel = dateLabel
 
-	-- Big Clock
 	local clockLabel = Instance.new("TextLabel")
-	clockLabel.Name = "BigClock"
 	clockLabel.Size = UDim2.new(1, 0, 0, 72)
-	clockLabel.Position = UDim2.new(0, 0, 0, 94)
+	clockLabel.Position = UDim2.new(0, 0, 0, 80)
 	clockLabel.BackgroundTransparency = 1
-	clockLabel.Font = F.Black
+	clockLabel.Font = F.Bold
 	clockLabel.TextSize = 64
 	clockLabel.TextColor3 = C.TextPrimary
-	clockLabel.Text = "19:54"
+	clockLabel.Text = "12:00"
 	clockLabel.Parent = lock
 	self.LockClockLabel = clockLabel
 
-	-- Quick Action Buttons at Bottom (Flashlight & Camera)
-	local torchBtn = Instance.new("TextButton")
-	torchBtn.Name = "TorchBtn"
-	torchBtn.Size = UDim2.new(0, 44, 0, 44)
-	torchBtn.Position = UDim2.new(0, 32, 1, -84)
-	torchBtn.BackgroundColor3 = Color3.fromRGB(30, 32, 40)
-	torchBtn.BackgroundTransparency = 0.3
-	torchBtn.Text = "🔦"
-	torchBtn.Font = F.Bold
-	torchBtn.TextSize = 18
-	torchBtn.BorderSizePixel = 0
-	torchBtn.Parent = lock
-	makeCorner(22, torchBtn)
+	-- Flashlight & Camera Quick Circles
+	local function makeCircle(xScale: number, glyph: string, onClick: () -> ())
+		local circle = Instance.new("TextButton")
+		circle.Size = UDim2.new(0, 48, 0, 48)
+		circle.AnchorPoint = Vector2.new(xScale, 1)
+		circle.Position = UDim2.new(xScale, xScale == 0 and 24 or -24, 1, -44)
+		circle.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+		circle.BackgroundTransparency = 0.3
+		circle.Text = glyph
+		circle.TextSize = 20
+		circle.BorderSizePixel = 0
+		circle.Parent = lock
+		makeCorner(24, circle)
+		circle.MouseButton1Click:Connect(onClick)
+	end
 
-	local camBtn = Instance.new("TextButton")
-	camBtn.Name = "CameraBtn"
-	camBtn.Size = UDim2.new(0, 44, 0, 44)
-	camBtn.Position = UDim2.new(1, -76, 1, -84)
-	camBtn.BackgroundColor3 = Color3.fromRGB(30, 32, 40)
-	camBtn.BackgroundTransparency = 0.3
-	camBtn.Text = "📷"
-	camBtn.Font = F.Bold
-	camBtn.TextSize = 18
-	camBtn.BorderSizePixel = 0
-	camBtn.Parent = lock
-	makeCorner(22, camBtn)
+	makeCircle(0, "🔦", function()
+		self.State.FlashlightOn = not self.State.FlashlightOn
+		self:ShowNotification("Flashlight", self.State.FlashlightOn and "On" or "Off", "🔦")
+	end)
 
-	camBtn.MouseButton1Click:Connect(function()
+	makeCircle(1, "📷", function()
 		self:Unlock()
 		self:OpenApp("camera")
 	end)
 
-	-- Unlock Prompt Button
+	-- Unlock Tap
 	local unlockBtn = Instance.new("TextButton")
-	unlockBtn.Name = "UnlockButton"
-	unlockBtn.Size = UDim2.new(1, 0, 0, 30)
-	unlockBtn.Position = UDim2.new(0, 0, 1, -34)
+	unlockBtn.Size = UDim2.new(1, 0, 1, 0)
 	unlockBtn.BackgroundTransparency = 1
-	unlockBtn.Font = F.Medium
-	unlockBtn.TextSize = 12
-	unlockBtn.TextColor3 = C.TextSecondary
-	unlockBtn.Text = "Swipe up or tap to unlock"
+	unlockBtn.Text = ""
 	unlockBtn.Parent = lock
 
 	unlockBtn.MouseButton1Click:Connect(function()
@@ -693,7 +825,7 @@ function PhoneUI:BuildLockScreen(parent: Instance)
 end
 
 --------------------------------------------------------------------------------
--- Home Indicator (Bottom Swipe Bar)
+-- Home Indicator
 --------------------------------------------------------------------------------
 function PhoneUI:BuildHomeIndicator(parent: Instance)
 	local C = PhoneTheme.Colors
@@ -701,7 +833,7 @@ function PhoneUI:BuildHomeIndicator(parent: Instance)
 
 	local bar = Instance.new("TextButton")
 	bar.Name = "HomeIndicator"
-	bar.Size = UDim2.new(0, D.HomeIndicatorWidth, 0, 14)
+	bar.Size = UDim2.new(0, D.HomeIndicatorWidth, 0, 16)
 	bar.AnchorPoint = Vector2.new(0.5, 1)
 	bar.Position = UDim2.new(0.5, 0, 1, -4)
 	bar.BackgroundTransparency = 1
@@ -710,8 +842,7 @@ function PhoneUI:BuildHomeIndicator(parent: Instance)
 	bar.Parent = parent
 
 	local pill = Instance.new("Frame")
-	pill.Name = "Pill"
-	pill.Size = UDim2.new(0, D.HomeIndicatorWidth, 0, D.HomeIndicatorHeight)
+	pill.Size = UDim2.new(1, 0, 0, D.HomeIndicatorHeight)
 	pill.AnchorPoint = Vector2.new(0.5, 0.5)
 	pill.Position = UDim2.new(0.5, 0, 0.5, 0)
 	pill.BackgroundColor3 = C.HomeIndicator
@@ -725,14 +856,13 @@ function PhoneUI:BuildHomeIndicator(parent: Instance)
 		elseif self.State.CurrentApp then
 			self:GoHome()
 		else
-			-- On homescreen: minimize/toggle phone
 			self:Toggle()
 		end
 	end)
 end
 
 --------------------------------------------------------------------------------
--- Notification Dropdown Banner
+-- Notification Banner
 --------------------------------------------------------------------------------
 function PhoneUI:BuildNotificationBanner(parent: Instance)
 	local C = PhoneTheme.Colors
@@ -742,329 +872,204 @@ function PhoneUI:BuildNotificationBanner(parent: Instance)
 	banner.Name = "NotificationBanner"
 	banner.Size = UDim2.new(1, -24, 0, 62)
 	banner.AnchorPoint = Vector2.new(0.5, 0)
-	banner.Position = UDim2.new(0.5, 0, 0, -80) -- Hidden above
+	banner.Position = UDim2.new(0.5, 0, 0, -80)
 	banner.BackgroundColor3 = C.CardBg
 	banner.BorderSizePixel = 0
 	banner.ZIndex = 80
 	banner.Visible = false
 	banner.Parent = parent
 	self.NotificationBanner = banner
-
 	makeCorner(16, banner)
 	makeStroke(C.CardStroke, 1, banner)
 
 	local icon = Instance.new("TextLabel")
-	icon.Name = "NotifIcon"
 	icon.Size = UDim2.new(0, 36, 0, 36)
 	icon.Position = UDim2.new(0, 12, 0, 13)
-	icon.BackgroundColor3 = C.SystemBlue
-	icon.Font = F.Bold
-	icon.TextSize = 18
-	icon.TextColor3 = C.TextPrimary
+	icon.BackgroundTransparency = 1
 	icon.Text = "💬"
+	icon.TextSize = 20
 	icon.Parent = banner
-	makeCorner(10, icon)
 	self.NotifIcon = icon
 
-	local title = Instance.new("TextLabel")
-	title.Name = "NotifTitle"
-	title.Size = UDim2.new(1, -64, 0, 18)
-	title.Position = UDim2.new(0, 56, 0, 12)
-	title.BackgroundTransparency = 1
-	title.Font = F.Bold
-	title.TextSize = 13
-	title.TextColor3 = C.TextPrimary
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Text = "Sun City Bank"
-	title.Parent = banner
-	self.NotifTitle = title
+	local nTitle = Instance.new("TextLabel")
+	nTitle.Size = UDim2.new(1, -64, 0, 18)
+	nTitle.Position = UDim2.new(0, 54, 0, 12)
+	nTitle.BackgroundTransparency = 1
+	nTitle.Font = F.Bold
+	nTitle.TextSize = 12
+	nTitle.TextColor3 = C.TextPrimary
+	nTitle.TextXAlignment = Enum.TextXAlignment.Left
+	nTitle.Text = "Notification"
+	nTitle.Parent = banner
+	self.NotifTitle = nTitle
 
-	local msg = Instance.new("TextLabel")
-	msg.Name = "NotifMsg"
-	msg.Size = UDim2.new(1, -64, 0, 16)
-	msg.Position = UDim2.new(0, 56, 0, 32)
-	msg.BackgroundTransparency = 1
-	msg.Font = F.Regular
-	msg.TextSize = 11
-	msg.TextColor3 = C.TextSecondary
-	msg.TextXAlignment = Enum.TextXAlignment.Left
-	msg.TextTruncate = Enum.TextTruncate.AtEnd
-	msg.Text = "You received $500 from Alex Morgan"
-	msg.Parent = banner
-	self.NotifMsg = msg
+	local nMsg = Instance.new("TextLabel")
+	nMsg.Size = UDim2.new(1, -64, 0, 16)
+	nMsg.Position = UDim2.new(0, 54, 0, 32)
+	nMsg.BackgroundTransparency = 1
+	nMsg.Font = F.Regular
+	nMsg.TextSize = 11
+	nMsg.TextColor3 = C.TextSecondary
+	nMsg.TextXAlignment = Enum.TextXAlignment.Left
+	nMsg.TextTruncate = Enum.TextTruncate.AtEnd
+	nMsg.Text = "Message content"
+	nMsg.Parent = banner
+	self.NotifMsg = nMsg
 end
 
-function PhoneUI:ShowNotification(titleText: string, messageText: string, iconGlyph: string?)
-	local banner = self.NotificationBanner
-	if not banner then return end
+function PhoneUI:ShowNotification(title: string, msg: string, glyph: string?)
+	local T = PhoneTheme.Tweens
+	self.NotifTitle.Text = title
+	self.NotifMsg.Text = msg
+	self.NotifIcon.Text = glyph or "🔔"
+	self.NotificationBanner.Visible = true
 
-	self.NotifTitle.Text = titleText
-	self.NotifMsg.Text = messageText
-	if iconGlyph then self.NotifIcon.Text = iconGlyph end
-
-	banner.Visible = true
-	banner.Position = UDim2.new(0.5, 0, 0, -80)
-
-	TweenService:Create(banner, PhoneTheme.Tweens.Bounce, {
-		Position = UDim2.new(0.5, 0, 0, 14)
+	TweenService:Create(self.NotificationBanner, T.Spring, {
+		Position = UDim2.new(0.5, 0, 0, 16)
 	}):Play()
 
 	task.delay(3.5, function()
-		if banner and banner.Visible then
-			local tween = TweenService:Create(banner, PhoneTheme.Tweens.Fast, {
+		if self.NotificationBanner then
+			local tw = TweenService:Create(self.NotificationBanner, T.Snappy, {
 				Position = UDim2.new(0.5, 0, 0, -80)
 			})
-			tween:Play()
-			tween.Completed:Connect(function()
-				banner.Visible = false
+			tw:Play()
+			tw.Completed:Connect(function()
+				self.NotificationBanner.Visible = false
 			end)
 		end
 	end)
 end
 
 --------------------------------------------------------------------------------
--- In-App Page Builders
+-- App Container Factory
 --------------------------------------------------------------------------------
-
--- Helper for Standard App Page Header
-local function makeAppHeader(appName: string, parent: Instance, onBack: () -> ()): Frame
+function PhoneUI:CreateAppContainer(id: string, parent: Instance): Frame
 	local C = PhoneTheme.Colors
-	local F = PhoneTheme.Fonts
+	local D = PhoneTheme.Dimensions
 
-	local header = Instance.new("Frame")
-	header.Name = "Header"
-	header.Size = UDim2.new(1, 0, 0, 44)
-	header.BackgroundTransparency = 1
-	header.BorderSizePixel = 0
-	header.Parent = parent
+	local appFrame = Instance.new("Frame")
+	appFrame.Name = "App_" .. id
+	appFrame.Size = UDim2.new(1, 0, 1, 0)
+	appFrame.BackgroundColor3 = C.ScreenBg
+	appFrame.BorderSizePixel = 0
+	appFrame.ZIndex = 30
+	appFrame.Visible = false
+	appFrame.Parent = parent
+	self.AppContainers[id] = appFrame
 
-	local backBtn = Instance.new("TextButton")
-	backBtn.Name = "BackBtn"
-	backBtn.Size = UDim2.new(0, 36, 0, 36)
-	backBtn.Position = UDim2.new(0, 10, 0, 4)
-	backBtn.BackgroundTransparency = 1
-	backBtn.Font = F.Bold
-	backBtn.TextSize = 18
-	backBtn.TextColor3 = C.SystemBlue
-	backBtn.Text = "◀"
-	backBtn.Parent = header
+	-- Top Header padding to clear Status Bar & Island
+	local headerPad = Instance.new("Frame")
+	headerPad.Size = UDim2.new(1, 0, 0, D.StatusBarHeight + 10)
+	headerPad.BackgroundTransparency = 1
+	headerPad.Parent = appFrame
 
-	backBtn.MouseButton1Click:Connect(onBack)
-
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.new(1, -96, 1, 0)
-	title.Position = UDim2.new(0, 48, 0, 0)
-	title.BackgroundTransparency = 1
-	title.Font = F.Bold
-	title.TextSize = 16
-	title.TextColor3 = C.TextPrimary
-	title.TextXAlignment = Enum.TextXAlignment.Center
-	title.Text = appName
-	title.Parent = header
-
-	return header
+	return appFrame
 end
 
--- 1. PHONE / CALLS APP
-function PhoneUI:BuildPhoneApp()
+--------------------------------------------------------------------------------
+-- App 1: Phone / Dialer
+--------------------------------------------------------------------------------
+function PhoneUI:BuildPhoneApp(parent: Instance)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
-	local page = Instance.new("Frame")
-	page.Name = "App_phone"
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundColor3 = C.ScreenBg
-	page.BorderSizePixel = 0
-	page.Visible = false
-	page.Parent = self.AppContainer
+	local frame = self:CreateAppContainer("phone", parent)
 
-	makeAppHeader("Phone", page, function() self:GoHome() end)
+	local numberDisplay = Instance.new("TextLabel")
+	numberDisplay.Size = UDim2.new(1, -32, 0, 48)
+	numberDisplay.Position = UDim2.new(0, 16, 0, 70)
+	numberDisplay.BackgroundTransparency = 1
+	numberDisplay.Font = F.Bold
+	numberDisplay.TextSize = 28
+	numberDisplay.TextColor3 = C.TextPrimary
+	numberDisplay.Text = ""
+	numberDisplay.Parent = frame
+	self.DialerDisplay = numberDisplay
 
-	-- Number Display
-	local display = Instance.new("TextLabel")
-	display.Name = "NumberDisplay"
-	display.Size = UDim2.new(1, -40, 0, 44)
-	display.Position = UDim2.new(0, 20, 0, 48)
-	display.BackgroundTransparency = 1
-	display.Font = F.Bold
-	display.TextSize = 28
-	display.TextColor3 = C.TextPrimary
-	display.Text = ""
-	display.Parent = page
-
-	-- Keypad Grid (3x4)
 	local keypad = Instance.new("Frame")
-	keypad.Name = "Keypad"
-	keypad.Size = UDim2.new(0, 220, 0, 310)
-	keypad.AnchorPoint = Vector2.new(0.5, 0)
-	keypad.Position = UDim2.new(0.5, 0, 0, 96)
+	keypad.Size = UDim2.new(1, -40, 0, 290)
+	keypad.Position = UDim2.new(0, 20, 0, 130)
 	keypad.BackgroundTransparency = 1
-	keypad.Parent = page
+	keypad.Parent = frame
 
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.new(0, 60, 0, 60)
-	grid.CellPadding = UDim2.new(0, 20, 0, 12)
+	grid.CellSize = UDim2.new(0, 68, 0, 60)
+	grid.CellPadding = UDim2.new(0, 24, 0, 12)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.Parent = keypad
 
-	local keys = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"}
+	local keys = {
+		{ "1", "" }, { "2", "ABC" }, { "3", "DEF" },
+		{ "4", "GHI" }, { "5", "JKL" }, { "6", "MNO" },
+		{ "7", "PQRS" }, { "8", "TUV" }, { "9", "WXYZ" },
+		{ "*", "" }, { "0", "+" }, { "#", "" }
+	}
+
 	for _, k in ipairs(keys) do
 		local btn = Instance.new("TextButton")
-		btn.Name = "Key_" .. k
-		btn.BackgroundColor3 = C.CardBg
+		btn.BackgroundColor3 = C.KeypadNumberBg
+		btn.Text = k[1]
 		btn.Font = F.Bold
 		btn.TextSize = 22
-		btn.TextColor3 = C.TextPrimary
-		btn.Text = k
+		btn.TextColor3 = C.KeypadNumberText
 		btn.BorderSizePixel = 0
 		btn.Parent = keypad
 		makeCorner(30, btn)
 
 		btn.MouseButton1Click:Connect(function()
-			display.Text = display.Text .. k
+			self.State.DialedNumber ..= k[1]
+			numberDisplay.Text = self.State.DialedNumber
 		end)
 	end
 
-	-- Bottom Call & Delete Action Row
+	-- Call & Backspace Controls
+	local controls = Instance.new("Frame")
+	controls.Size = UDim2.new(1, -40, 0, 64)
+	controls.Position = UDim2.new(0, 20, 0, 440)
+	controls.BackgroundTransparency = 1
+	controls.Parent = frame
+
 	local callBtn = Instance.new("TextButton")
-	callBtn.Name = "CallBtn"
 	callBtn.Size = UDim2.new(0, 64, 0, 64)
-	callBtn.AnchorPoint = Vector2.new(0.5, 0)
-	callBtn.Position = UDim2.new(0.5, 0, 0, 420)
+	callBtn.Position = UDim2.new(0.5, -32, 0, 0)
 	callBtn.BackgroundColor3 = C.SystemGreen
-	callBtn.Font = F.Bold
-	callBtn.TextSize = 26
-	callBtn.TextColor3 = Color3.new(1, 1, 1)
 	callBtn.Text = "📞"
+	callBtn.TextSize = 26
 	callBtn.BorderSizePixel = 0
-	callBtn.Parent = page
+	callBtn.Parent = controls
 	makeCorner(32, callBtn)
 
-	local delBtn = Instance.new("TextButton")
-	delBtn.Name = "DeleteBtn"
-	delBtn.Size = UDim2.new(0, 44, 0, 44)
-	delBtn.Position = UDim2.new(0.5, 52, 0, 430)
-	delBtn.BackgroundTransparency = 1
-	delBtn.Font = F.Bold
-	delBtn.TextSize = 20
-	delBtn.TextColor3 = C.TextSecondary
-	delBtn.Text = "⌫"
-	delBtn.Parent = page
-
-	delBtn.MouseButton1Click:Connect(function()
-		local text = display.Text
-		if #text > 0 then
-			display.Text = string.sub(text, 1, #text - 1)
-		end
-	end)
-
 	callBtn.MouseButton1Click:Connect(function()
-		if #display.Text > 0 then
-			self:StartCall(display.Text, display.Text)
+		if #self.State.DialedNumber > 0 then
+			self:StartCall(self.State.DialedNumber)
 		end
 	end)
 
-	-- Active Call Overlay Screen
-	self:BuildActiveCallOverlay(page)
-end
+	local backspaceBtn = Instance.new("TextButton")
+	backspaceBtn.Size = UDim2.new(0, 44, 0, 44)
+	backspaceBtn.Position = UDim2.new(1, -54, 0, 10)
+	backspaceBtn.BackgroundTransparency = 1
+	backspaceBtn.Text = "⌫"
+	backspaceBtn.Font = F.Bold
+	backspaceBtn.TextSize = 22
+	backspaceBtn.TextColor3 = C.TextSecondary
+	backspaceBtn.Parent = controls
 
-function PhoneUI:BuildActiveCallOverlay(parent: Instance)
-	local C = PhoneTheme.Colors
-	local F = PhoneTheme.Fonts
-
-	local overlay = Instance.new("Frame")
-	overlay.Name = "CallOverlay"
-	overlay.Size = UDim2.new(1, 0, 1, 0)
-	overlay.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
-	overlay.ZIndex = 50
-	overlay.Visible = false
-	overlay.BorderSizePixel = 0
-	overlay.Parent = parent
-	self.CallOverlay = overlay
-
-	local avatar = Instance.new("Frame")
-	avatar.Name = "Avatar"
-	avatar.Size = UDim2.new(0, 84, 0, 84)
-	avatar.AnchorPoint = Vector2.new(0.5, 0)
-	avatar.Position = UDim2.new(0.5, 0, 0, 80)
-	avatar.BackgroundColor3 = C.SystemIndigo
-	avatar.BorderSizePixel = 0
-	avatar.Parent = overlay
-	makeCorner(42, avatar)
-
-	local avatarGlyph = Instance.new("TextLabel")
-	avatarGlyph.Name = "Glyph"
-	avatarGlyph.Size = UDim2.new(1, 0, 1, 0)
-	avatarGlyph.BackgroundTransparency = 1
-	avatarGlyph.Font = F.Bold
-	avatarGlyph.TextSize = 36
-	avatarGlyph.TextColor3 = Color3.new(1, 1, 1)
-	avatarGlyph.Text = "👤"
-	avatarGlyph.Parent = avatar
-
-	local callerName = Instance.new("TextLabel")
-	callerName.Name = "CallerName"
-	callerName.Size = UDim2.new(1, -40, 0, 28)
-	callerName.Position = UDim2.new(0, 20, 0, 180)
-	callerName.BackgroundTransparency = 1
-	callerName.Font = F.Bold
-	callerName.TextSize = 20
-	callerName.TextColor3 = C.TextPrimary
-	callerName.Text = "Calling..."
-	callerName.Parent = overlay
-	self.CallerNameLabel = callerName
-
-	local callTimer = Instance.new("TextLabel")
-	callTimer.Name = "CallTimer"
-	callTimer.Size = UDim2.new(1, -40, 0, 20)
-	callTimer.Position = UDim2.new(0, 20, 0, 210)
-	callTimer.BackgroundTransparency = 1
-	callTimer.Font = F.Regular
-	callTimer.TextSize = 13
-	callTimer.TextColor3 = C.TextSecondary
-	callTimer.Text = "Connected 00:00"
-	callTimer.Parent = overlay
-	self.CallTimerLabel = callTimer
-
-	-- End Call Button
-	local endBtn = Instance.new("TextButton")
-	endBtn.Name = "EndCallBtn"
-	endBtn.Size = UDim2.new(0, 68, 0, 68)
-	endBtn.AnchorPoint = Vector2.new(0.5, 1)
-	endBtn.Position = UDim2.new(0.5, 0, 1, -54)
-	endBtn.BackgroundColor3 = C.SystemRed
-	endBtn.Font = F.Bold
-	endBtn.TextSize = 28
-	endBtn.TextColor3 = Color3.new(1, 1, 1)
-	endBtn.Text = "🔴"
-	endBtn.BorderSizePixel = 0
-	endBtn.Parent = overlay
-	makeCorner(34, endBtn)
-
-	endBtn.MouseButton1Click:Connect(function()
-		self:EndCall()
+	backspaceBtn.MouseButton1Click:Connect(function()
+		if #self.State.DialedNumber > 0 then
+			self.State.DialedNumber = string.sub(self.State.DialedNumber, 1, #self.State.DialedNumber - 1)
+			numberDisplay.Text = self.State.DialedNumber
+		end
 	end)
 end
 
-function PhoneUI:StartCall(contactName: string, number: string)
-	self.State.ActiveCall = {
-		Contact = contactName,
-		Number = number,
-		StartTime = os.clock(),
-	}
-
-	if self.CallerNameLabel then
-		self.CallerNameLabel.Text = contactName
-	end
-	if self.CallOverlay then
-		self.CallOverlay.Visible = true
-	end
-	if self.IslandDot then
-		self.IslandDot.Visible = true
-		self.IslandLabel.Text = "📞 In Call"
-	end
-
+function PhoneUI:StartCall(number: string)
+	self.State.ActiveCall = { Number = number, StartTime = os.clock() }
+	self.IslandDot.Visible = true
+	self.IslandTitle.Text = "Calling " .. number
+	self.IslandSub.Text = "Connected"
+	self:ShowNotification("Phone", "Calling " .. number .. "...", "📞")
 	if self.OnCallStarted then
 		self.OnCallStarted(number)
 	end
@@ -1072,838 +1077,1013 @@ end
 
 function PhoneUI:EndCall()
 	self.State.ActiveCall = nil
-	if self.CallOverlay then
-		self.CallOverlay.Visible = false
-	end
-	if self.IslandDot then
-		self.IslandDot.Visible = false
-		self.IslandLabel.Text = ""
-	end
-
+	self.IslandDot.Visible = false
+	self.IslandTitle.Text = "Call Ended"
+	self.IslandSub.Text = "Disconnected"
+	self:ShowNotification("Phone", "Call Ended", "📞")
 	if self.OnCallEnded then
 		self.OnCallEnded()
 	end
 end
 
--- 2. MESSAGES APP
-function PhoneUI:BuildMessagesApp()
+--------------------------------------------------------------------------------
+-- App 2: Messages
+--------------------------------------------------------------------------------
+function PhoneUI:BuildMessagesApp(parent: Instance)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
-	local page = Instance.new("Frame")
-	page.Name = "App_messages"
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundColor3 = C.ScreenBg
-	page.BorderSizePixel = 0
-	page.Visible = false
-	page.Parent = self.AppContainer
+	local frame = self:CreateAppContainer("messages", parent)
 
-	makeAppHeader("Messages", page, function() self:GoHome() end)
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -32, 0, 32)
+	title.Position = UDim2.new(0, 16, 0, 52)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 22
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Messages"
+	title.Parent = frame
 
-	-- Message Bubbles List
-	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "ChatScroll"
-	scroll.Size = UDim2.new(1, -20, 1, -100)
-	scroll.Position = UDim2.new(0, 10, 0, 48)
-	scroll.BackgroundTransparency = 1
-	scroll.ScrollBarThickness = 2
-	scroll.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
-	scroll.CanvasSize = UDim2.new(0, 0, 0, 400)
-	scroll.BorderSizePixel = 0
-	scroll.Parent = page
-	self.ChatScroll = scroll
+	local chatScroll = Instance.new("ScrollingFrame")
+	chatScroll.Size = UDim2.new(1, -24, 0, 420)
+	chatScroll.Position = UDim2.new(0, 12, 0, 90)
+	chatScroll.BackgroundTransparency = 1
+	chatScroll.ScrollBarThickness = 3
+	chatScroll.Parent = frame
+	self.ChatScroll = chatScroll
 
 	local list = Instance.new("UIListLayout")
-	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Padding = UDim.new(0, 8)
-	list.Parent = scroll
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = chatScroll
 
-	-- Sample Messages
-	self:AddMessageBubble(scroll, "Hey! Are you meeting at Sun City Bank?", false, 1)
-	self:AddMessageBubble(scroll, "Yeah, on my way right now.", true, 2)
-	self:AddMessageBubble(scroll, "Great, bring the vehicle from garage.", false, 3)
+	self:AddMessageBubble("Hey! Welcome to Sun City.", false)
+	self:AddMessageBubble("Your Sky Phone is activated.", false)
 
-	-- Bottom Text Input Box
+	-- Input bar
 	local inputBar = Instance.new("Frame")
-	inputBar.Name = "InputBar"
-	inputBar.Size = UDim2.new(1, -16, 0, 40)
-	inputBar.AnchorPoint = Vector2.new(0.5, 1)
-	inputBar.Position = UDim2.new(0.5, 0, 1, -10)
+	inputBar.Size = UDim2.new(1, -24, 0, 44)
+	inputBar.Position = UDim2.new(0, 12, 1, -64)
 	inputBar.BackgroundColor3 = C.InputBg
 	inputBar.BorderSizePixel = 0
-	inputBar.Parent = page
-	makeCorner(20, inputBar)
+	inputBar.Parent = frame
+	makeCorner(22, inputBar)
 	makeStroke(C.InputStroke, 1, inputBar)
 
 	local textBox = Instance.new("TextBox")
-	textBox.Name = "TextBox"
-	textBox.Size = UDim2.new(1, -48, 1, 0)
+	textBox.Size = UDim2.new(1, -54, 1, 0)
 	textBox.Position = UDim2.new(0, 14, 0, 0)
 	textBox.BackgroundTransparency = 1
 	textBox.Font = F.Regular
 	textBox.TextSize = 13
 	textBox.TextColor3 = C.TextPrimary
-	textBox.PlaceholderColor3 = C.TextPlaceholder
 	textBox.PlaceholderText = "iMessage..."
+	textBox.PlaceholderColor3 = C.TextPlaceholder
 	textBox.TextXAlignment = Enum.TextXAlignment.Left
+	textBox.Text = ""
 	textBox.ClearTextOnFocus = false
 	textBox.Parent = inputBar
 
 	local sendBtn = Instance.new("TextButton")
-	sendBtn.Name = "SendBtn"
-	sendBtn.Size = UDim2.new(0, 28, 0, 28)
+	sendBtn.Size = UDim2.new(0, 32, 0, 32)
 	sendBtn.AnchorPoint = Vector2.new(1, 0.5)
 	sendBtn.Position = UDim2.new(1, -6, 0.5, 0)
 	sendBtn.BackgroundColor3 = C.SystemBlue
+	sendBtn.Text = "↑"
 	sendBtn.Font = F.Bold
-	sendBtn.TextSize = 14
-	sendBtn.TextColor3 = Color3.new(1, 1, 1)
-	sendBtn.Text = "⬆"
+	sendBtn.TextSize = 18
+	sendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	sendBtn.BorderSizePixel = 0
 	sendBtn.Parent = inputBar
-	makeCorner(14, sendBtn)
+	makeCorner(16, sendBtn)
 
 	local function sendMessage()
 		local text = textBox.Text
 		if #text > 0 then
-			self:AddMessageBubble(scroll, text, true, #scroll:GetChildren())
+			self:AddMessageBubble(text, true)
 			textBox.Text = ""
-			scroll.CanvasPosition = Vector2.new(0, 9999)
 			if self.OnMessageSent then
-				self.OnMessageSent("Alex Morgan", text)
+				self.OnMessageSent("Global", text)
 			end
 		end
 	end
 
 	sendBtn.MouseButton1Click:Connect(sendMessage)
-	textBox.FocusLost:Connect(function(enterPressed)
-		if enterPressed then sendMessage() end
+	textBox.FocusLost:Connect(function(enter)
+		if enter then sendMessage() end
 	end)
 end
 
-function PhoneUI:AddMessageBubble(parent: Instance, text: string, isSent: boolean, order: number)
+function PhoneUI:AddMessageBubble(text: string, isSender: boolean)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
 	local bubble = Instance.new("Frame")
-	bubble.Name = "Bubble_" .. order
-	bubble.Size = UDim2.new(0, 210, 0, 36)
-	bubble.AnchorPoint = Vector2.new(isSent and 1 or 0, 0)
-	bubble.Position = UDim2.new(isSent and 1 or 0, 0, 0, 0)
-	bubble.BackgroundColor3 = isSent and C.BubbleSent or C.BubbleReceived
+	bubble.Size = UDim2.new(0.8, 0, 0, 36)
+	bubble.AnchorPoint = Vector2.new(isSender and 1 or 0, 0)
+	bubble.Position = UDim2.new(isSender and 1 or 0, 0, 0, 0)
+	bubble.BackgroundColor3 = isSender and C.SystemBlue or C.CardBg
 	bubble.BorderSizePixel = 0
-	bubble.LayoutOrder = order
-	bubble.Parent = parent
-	makeCorner(14, bubble)
+	bubble.Parent = self.ChatScroll
+	makeCorner(16, bubble)
 
-	local label = Instance.new("TextLabel")
-	label.Name = "MessageText"
-	label.Size = UDim2.new(1, -18, 1, -8)
-	label.Position = UDim2.new(0, 9, 0, 4)
-	label.BackgroundTransparency = 1
-	label.Font = F.Regular
-	label.TextSize = 12
-	label.TextColor3 = C.TextPrimary
-	label.TextXAlignment = isSent and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
-	label.TextWrapped = true
-	label.Text = text
-	label.Parent = bubble
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -16, 1, 0)
+	lbl.Position = UDim2.new(0, 8, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Font = F.Regular
+	lbl.TextSize = 12
+	lbl.TextColor3 = C.TextPrimary
+	lbl.TextXAlignment = isSender and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+	lbl.TextWrapped = true
+	lbl.Text = text
+	lbl.Parent = bubble
 end
 
--- 3. BANK / WALLET APP
-function PhoneUI:BuildBankApp()
+--------------------------------------------------------------------------------
+-- App 3: Sun City Bank
+--------------------------------------------------------------------------------
+function PhoneUI:BuildBankApp(parent: Instance)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
-	local page = Instance.new("Frame")
-	page.Name = "App_bank"
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundColor3 = C.ScreenBg
-	page.BorderSizePixel = 0
-	page.Visible = false
-	page.Parent = self.AppContainer
+	local frame = self:CreateAppContainer("bank", parent)
 
-	makeAppHeader("Sun City Bank", page, function() self:GoHome() end)
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -32, 0, 28)
+	title.Position = UDim2.new(0, 16, 0, 52)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 22
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Sun City Bank"
+	title.Parent = frame
 
-	-- Inset Credit Card Balance Graphic
+	-- Visa/Platinum Card
 	local card = Instance.new("Frame")
-	card.Name = "CreditCard"
-	card.Size = UDim2.new(1, -28, 0, 138)
-	card.Position = UDim2.new(0, 14, 0, 48)
-	card.BackgroundColor3 = C.SystemIndigo
+	card.Size = UDim2.new(1, -32, 0, 160)
+	card.Position = UDim2.new(0, 16, 0, 90)
+	card.BackgroundColor3 = Color3.fromRGB(30, 28, 54)
 	card.BorderSizePixel = 0
-	card.Parent = page
+	card.Parent = frame
 	makeCorner(18, card)
+	makeStroke(C.SystemIndigo, 1.5, card)
 
 	local cardGrad = Instance.new("UIGradient")
 	cardGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 75, 220)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 35, 130)),
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(44, 38, 88)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 18, 36)),
 	})
-	cardGrad.Rotation = 35
+	cardGrad.Rotation = 60
 	cardGrad.Parent = card
 
-	local bankTitle = Instance.new("TextLabel")
-	bankTitle.Name = "BankTitle"
-	bankTitle.Size = UDim2.new(1, -32, 0, 20)
-	bankTitle.Position = UDim2.new(0, 16, 0, 16)
-	bankTitle.BackgroundTransparency = 1
-	bankTitle.Font = F.Bold
-	bankTitle.TextSize = 13
-	bankTitle.TextColor3 = Color3.fromRGB(220, 220, 255)
-	bankTitle.TextXAlignment = Enum.TextXAlignment.Left
-	bankTitle.Text = "SUN CITY PLATINUM"
-	bankTitle.Parent = card
+	local chip = Instance.new("Frame")
+	chip.Size = UDim2.new(0, 32, 0, 24)
+	chip.Position = UDim2.new(0, 18, 0, 18)
+	chip.BackgroundColor3 = Color3.fromRGB(212, 175, 55)
+	chip.BorderSizePixel = 0
+	chip.Parent = card
+	makeCorner(6, chip)
 
-	local balLabel = Instance.new("TextLabel")
-	balLabel.Name = "BalanceLabel"
-	balLabel.Size = UDim2.new(1, -32, 0, 36)
-	balLabel.Position = UDim2.new(0, 16, 0, 46)
-	balLabel.BackgroundTransparency = 1
-	balLabel.Font = F.Bold
-	balLabel.TextSize = 30
-	balLabel.TextColor3 = Color3.new(1, 1, 1)
-	balLabel.TextXAlignment = Enum.TextXAlignment.Left
-	balLabel.Text = string.format("$%s", tostring(self.State.Balance))
-	balLabel.Parent = card
-	self.BankBalanceLabel = balLabel
+	local balTitle = Instance.new("TextLabel")
+	balTitle.Size = UDim2.new(1, -36, 0, 16)
+	balTitle.Position = UDim2.new(0, 18, 0, 60)
+	balTitle.BackgroundTransparency = 1
+	balTitle.Font = F.Medium
+	balTitle.TextSize = 11
+	balTitle.TextColor3 = C.TextSecondary
+	balTitle.TextXAlignment = Enum.TextXAlignment.Left
+	balTitle.Text = "Total Balance"
+	balTitle.Parent = card
 
-	local holderLabel = Instance.new("TextLabel")
-	holderLabel.Name = "Holder"
-	holderLabel.Size = UDim2.new(1, -32, 0, 18)
-	holderLabel.Position = UDim2.new(0, 16, 1, -30)
-	holderLabel.BackgroundTransparency = 1
-	holderLabel.Font = F.Medium
-	holderLabel.TextSize = 11
-	holderLabel.TextColor3 = Color3.fromRGB(200, 200, 235)
-	holderLabel.TextXAlignment = Enum.TextXAlignment.Left
-	holderLabel.Text = "CITIZEN ACCOUNT •••• 4721"
-	holderLabel.Parent = card
+	local balAmt = Instance.new("TextLabel")
+	balAmt.Size = UDim2.new(1, -36, 0, 32)
+	balAmt.Position = UDim2.new(0, 18, 0, 78)
+	balAmt.BackgroundTransparency = 1
+	balAmt.Font = F.Bold
+	balAmt.TextSize = 26
+	balAmt.TextColor3 = Color3.fromRGB(255, 255, 255)
+	balAmt.TextXAlignment = Enum.TextXAlignment.Left
+	balAmt.Text = string.format("$%d", self.State.Balance)
+	balAmt.Parent = card
+	self.BankBalanceLabel = balAmt
 
-	-- Quick Transfer Button
+	local cardNum = Instance.new("TextLabel")
+	cardNum.Size = UDim2.new(1, -36, 0, 18)
+	cardNum.Position = UDim2.new(0, 18, 1, -26)
+	cardNum.BackgroundTransparency = 1
+	cardNum.Font = F.Medium
+	cardNum.TextSize = 12
+	cardNum.TextColor3 = Color3.fromRGB(200, 200, 215)
+	cardNum.TextXAlignment = Enum.TextXAlignment.Left
+	cardNum.Text = "•••• •••• •••• 8842"
+	cardNum.Parent = card
+
+	-- Action Buttons
+	local btnRow = Instance.new("Frame")
+	btnRow.Size = UDim2.new(1, -32, 0, 48)
+	btnRow.Position = UDim2.new(0, 16, 0, 265)
+	btnRow.BackgroundTransparency = 1
+	btnRow.Parent = frame
+
 	local transferBtn = Instance.new("TextButton")
-	transferBtn.Name = "TransferBtn"
-	transferBtn.Size = UDim2.new(1, -28, 0, 42)
-	transferBtn.Position = UDim2.new(0, 14, 0, 200)
-	transferBtn.BackgroundColor3 = C.SystemBlue
+	transferBtn.Size = UDim2.new(1, 0, 1, 0)
+	transferBtn.BackgroundColor3 = C.SystemIndigo
+	transferBtn.Text = "💸 Quick Transfer ($500)"
 	transferBtn.Font = F.Bold
-	transferBtn.TextSize = 14
-	transferBtn.TextColor3 = Color3.new(1, 1, 1)
-	transferBtn.Text = "💸 Transfer Money"
+	transferBtn.TextSize = 13
+	transferBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	transferBtn.BorderSizePixel = 0
-	transferBtn.Parent = page
-	makeCorner(12, transferBtn)
-
-	-- Recent Transactions Header
-	local txHeader = Instance.new("TextLabel")
-	txHeader.Name = "TxHeader"
-	txHeader.Size = UDim2.new(1, -28, 0, 20)
-	txHeader.Position = UDim2.new(0, 14, 0, 256)
-	txHeader.BackgroundTransparency = 1
-	txHeader.Font = F.Bold
-	txHeader.TextSize = 12
-	txHeader.TextColor3 = C.TextSecondary
-	txHeader.TextXAlignment = Enum.TextXAlignment.Left
-	txHeader.Text = "RECENT ACTIVITY"
-	txHeader.Parent = page
-
-	-- Transactions List Card
-	local txCard = Instance.new("Frame")
-	txCard.Name = "TxCard"
-	txCard.Size = UDim2.new(1, -28, 0, 190)
-	txCard.Position = UDim2.new(0, 14, 0, 282)
-	txCard.BackgroundColor3 = C.CardBg
-	txCard.BorderSizePixel = 0
-	txCard.Parent = page
-	makeCorner(14, txCard)
-	makeStroke(C.CardStroke, 1, txCard)
-
-	local txList = Instance.new("UIListLayout")
-	txList.SortOrder = Enum.SortOrder.LayoutOrder
-	txList.Parent = txCard
-
-	local sampleTxs = {
-		{ Title = "Salary Deposit", Sub = "Government", Amount = "+$1,250", Color = C.SystemGreen },
-		{ Title = "Sun City Gas", Sub = "Fuel", Amount = "-$85", Color = C.SystemRed },
-		{ Title = "Vehicle Purchase", Sub = "Dealership", Amount = "-$4,200", Color = C.SystemRed },
-	}
-
-	for i, tx in ipairs(sampleTxs) do
-		local row = Instance.new("Frame")
-		row.Name = "Row_" .. i
-		row.Size = UDim2.new(1, 0, 0, 52)
-		row.BackgroundTransparency = 1
-		row.Parent = txCard
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Size = UDim2.new(0, 140, 0, 20)
-		tLabel.Position = UDim2.new(0, 14, 0, 8)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Font = F.Bold
-		tLabel.TextSize = 13
-		tLabel.TextColor3 = C.TextPrimary
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Text = tx.Title
-		tLabel.Parent = row
-
-		local sLabel = Instance.new("TextLabel")
-		sLabel.Size = UDim2.new(0, 140, 0, 16)
-		sLabel.Position = UDim2.new(0, 14, 0, 28)
-		sLabel.BackgroundTransparency = 1
-		sLabel.Font = F.Regular
-		sLabel.TextSize = 11
-		sLabel.TextColor3 = C.TextSecondary
-		sLabel.TextXAlignment = Enum.TextXAlignment.Left
-		sLabel.Text = tx.Sub
-		sLabel.Parent = row
-
-		local aLabel = Instance.new("TextLabel")
-		aLabel.Size = UDim2.new(0, 80, 1, 0)
-		aLabel.Position = UDim2.new(1, -94, 0, 0)
-		aLabel.BackgroundTransparency = 1
-		aLabel.Font = F.Bold
-		aLabel.TextSize = 13
-		aLabel.TextColor3 = tx.Color
-		aLabel.TextXAlignment = Enum.TextXAlignment.Right
-		aLabel.Text = tx.Amount
-		aLabel.Parent = row
-
-		if i < #sampleTxs then
-			local sep = Instance.new("Frame")
-			sep.Size = UDim2.new(1, -14, 0, 1)
-			sep.Position = UDim2.new(0, 14, 1, -1)
-			sep.BackgroundColor3 = C.Separator
-			sep.BorderSizePixel = 0
-			sep.Parent = row
-		end
-	end
+	transferBtn.Parent = btnRow
+	makeCorner(14, transferBtn)
 
 	transferBtn.MouseButton1Click:Connect(function()
-		self:ShowNotification("Bank Transfer", "Transfer simulation: $100 sent!", "💸")
-		self.State.Balance -= 100
-		if self.BankBalanceLabel then
-			self.BankBalanceLabel.Text = string.format("$%s", tostring(self.State.Balance))
-		end
-		if self.OnTransferMoney then
-			self.OnTransferMoney("Alex Morgan", 100)
+		if self.State.Balance >= 500 then
+			self.State.Balance -= 500
+			balAmt.Text = string.format("$%d", self.State.Balance)
+			self:ShowNotification("Transfer Sent", "Transferred $500 to contact.", "💸")
+			if self.OnTransferMoney then
+				self.OnTransferMoney("Contact", 500)
+			end
+		else
+			self:ShowNotification("Declined", "Insufficient funds.", "❌")
 		end
 	end)
 end
 
--- 4. GARAGE / VEHICLES APP
-function PhoneUI:BuildGarageApp()
+--------------------------------------------------------------------------------
+-- App 4: Garage
+--------------------------------------------------------------------------------
+function PhoneUI:BuildGarageApp(parent: Instance)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
-	local page = Instance.new("Frame")
-	page.Name = "App_garage"
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundColor3 = C.ScreenBg
-	page.BorderSizePixel = 0
-	page.Visible = false
-	page.Parent = self.AppContainer
+	local frame = self:CreateAppContainer("garage", parent)
 
-	makeAppHeader("Garage", page, function() self:GoHome() end)
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -32, 0, 28)
+	title.Position = UDim2.new(0, 16, 0, 52)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 22
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "My Garage"
+	title.Parent = frame
 
 	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "VehiclesScroll"
-	scroll.Size = UDim2.new(1, -24, 1, -54)
-	scroll.Position = UDim2.new(0, 12, 0, 48)
+	scroll.Size = UDim2.new(1, -24, 0, 480)
+	scroll.Position = UDim2.new(0, 12, 0, 90)
 	scroll.BackgroundTransparency = 1
-	scroll.ScrollBarThickness = 2
-	scroll.Parent = page
+	scroll.ScrollBarThickness = 3
+	scroll.Parent = frame
 
 	local list = Instance.new("UIListLayout")
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Padding = UDim.new(0, 14)
+	list.Padding = UDim.new(0, 12)
 	list.Parent = scroll
 
-	local sampleVehicles = {
-		{ Id = "veh_1", Name = "Karin Sultan RS", Plate = "47AMER88", Health = 100, Fuel = 82, Locked = true },
-		{ Id = "veh_2", Name = "Benefactor Schafter V12", Plate = "99SKY001", Health = 94, Fuel = 45, Locked = false },
+	local vehicles = {
+		{ Id = "veh_01", Name = "Karin Sultan RS", Plate = "SKY-882", Fuel = 85, Health = 100, Locked = true },
+		{ Id = "veh_02", Name = "Grotti Turismo R", Plate = "AMG-007", Fuel = 45, Health = 92, Locked = false },
+		{ Id = "veh_03", Name = "Pfister Comet S2", Plate = "PCH-911", Fuel = 98, Health = 100, Locked = true },
 	}
 
-	for _, veh in ipairs(sampleVehicles) do
+	for _, v in ipairs(vehicles) do
 		local card = Instance.new("Frame")
-		card.Name = "Card_" .. veh.Id
-		card.Size = UDim2.new(1, 0, 0, 138)
+		card.Size = UDim2.new(1, 0, 0, 100)
 		card.BackgroundColor3 = C.CardBg
 		card.BorderSizePixel = 0
 		card.Parent = scroll
-		makeCorner(14, card)
+		makeCorner(16, card)
 		makeStroke(C.CardStroke, 1, card)
 
 		local vName = Instance.new("TextLabel")
-		vName.Size = UDim2.new(1, -28, 0, 22)
+		vName.Size = UDim2.new(0.65, 0, 0, 20)
 		vName.Position = UDim2.new(0, 14, 0, 12)
 		vName.BackgroundTransparency = 1
 		vName.Font = F.Bold
 		vName.TextSize = 14
 		vName.TextColor3 = C.TextPrimary
 		vName.TextXAlignment = Enum.TextXAlignment.Left
-		vName.Text = veh.Name
+		vName.Text = v.Name
 		vName.Parent = card
 
 		local vPlate = Instance.new("TextLabel")
-		vPlate.Size = UDim2.new(0, 120, 0, 16)
-		vPlate.Position = UDim2.new(0, 14, 0, 36)
+		vPlate.Size = UDim2.new(0.65, 0, 0, 16)
+		vPlate.Position = UDim2.new(0, 14, 0, 32)
 		vPlate.BackgroundTransparency = 1
 		vPlate.Font = F.Medium
 		vPlate.TextSize = 11
-		vPlate.TextColor3 = C.SystemBlue
+		vPlate.TextColor3 = C.TextSecondary
 		vPlate.TextXAlignment = Enum.TextXAlignment.Left
-		vPlate.Text = "PLATE: " .. veh.Plate
+		vPlate.Text = "Plate: " .. v.Plate
 		vPlate.Parent = card
 
-		-- Stats (Fuel & Health)
-		local statsLabel = Instance.new("TextLabel")
-		statsLabel.Size = UDim2.new(1, -28, 0, 16)
-		statsLabel.Position = UDim2.new(0, 14, 0, 58)
-		statsLabel.BackgroundTransparency = 1
-		statsLabel.Font = F.Regular
-		statsLabel.TextSize = 11
-		statsLabel.TextColor3 = C.TextSecondary
-		statsLabel.TextXAlignment = Enum.TextXAlignment.Left
-		statsLabel.Text = string.format("⛽ Fuel: %d%%  |  🛡️ Health: %d%%", veh.Fuel, veh.Health)
-		statsLabel.Parent = card
+		local vStats = Instance.new("TextLabel")
+		vStats.Size = UDim2.new(0.65, 0, 0, 16)
+		vStats.Position = UDim2.new(0, 14, 0, 52)
+		vStats.BackgroundTransparency = 1
+		vStats.Font = F.Regular
+		vStats.TextSize = 10
+		vStats.TextColor3 = C.SystemGreen
+		vStats.TextXAlignment = Enum.TextXAlignment.Left
+		vStats.Text = string.format("⛽ Fuel: %d%%  |  🛡️ Health: %d%%", v.Fuel, v.Health)
+		vStats.Parent = card
 
-		-- Action Buttons (Lock / GPS Track)
 		local lockBtn = Instance.new("TextButton")
-		lockBtn.Name = "LockBtn"
-		lockBtn.Size = UDim2.new(0, 110, 0, 32)
-		lockBtn.Position = UDim2.new(0, 14, 0, 88)
-		lockBtn.BackgroundColor3 = veh.Locked and C.SystemOrange or C.SystemGreen
-		lockBtn.Font = F.Bold
-		lockBtn.TextSize = 12
-		lockBtn.TextColor3 = Color3.new(1, 1, 1)
-		lockBtn.Text = veh.Locked and "🔒 Locked" or "🔓 Unlocked"
+		lockBtn.Size = UDim2.new(0, 38, 0, 38)
+		lockBtn.Position = UDim2.new(1, -88, 0, 14)
+		lockBtn.BackgroundColor3 = v.Locked and C.SystemRed or C.SystemGreen
+		lockBtn.Text = v.Locked and "🔒" or "🔓"
+		lockBtn.TextSize = 18
 		lockBtn.BorderSizePixel = 0
 		lockBtn.Parent = card
-		makeCorner(8, lockBtn)
-
-		local gpsBtn = Instance.new("TextButton")
-		gpsBtn.Name = "GpsBtn"
-		gpsBtn.Size = UDim2.new(0, 110, 0, 32)
-		gpsBtn.Position = UDim2.new(1, -124, 0, 88)
-		gpsBtn.BackgroundColor3 = C.SystemBlue
-		gpsBtn.Font = F.Bold
-		gpsBtn.TextSize = 12
-		gpsBtn.TextColor3 = Color3.new(1, 1, 1)
-		gpsBtn.Text = "📍 Track GPS"
-		gpsBtn.BorderSizePixel = 0
-		gpsBtn.Parent = card
-		makeCorner(8, gpsBtn)
+		makeCorner(12, lockBtn)
 
 		lockBtn.MouseButton1Click:Connect(function()
-			veh.Locked = not veh.Locked
-			lockBtn.Text = veh.Locked and "🔒 Locked" or "🔓 Unlocked"
-			lockBtn.BackgroundColor3 = veh.Locked and C.SystemOrange or C.SystemGreen
-			self:ShowNotification("Vehicle Remote", veh.Name .. " " .. (veh.Locked and "locked" or "unlocked"), "🚗")
+			v.Locked = not v.Locked
+			lockBtn.BackgroundColor3 = v.Locked and C.SystemRed or C.SystemGreen
+			lockBtn.Text = v.Locked and "🔒" or "🔓"
+			self:ShowNotification("Vehicle Key", (v.Locked and "Locked " or "Unlocked ") .. v.Name, "🚗")
 			if self.OnVehicleAction then
-				self.OnVehicleAction(veh.Id, "toggle_lock")
+				self.OnVehicleAction(v.Id, v.Locked and "lock" or "unlock")
 			end
 		end)
+
+		local gpsBtn = Instance.new("TextButton")
+		gpsBtn.Size = UDim2.new(0, 38, 0, 38)
+		gpsBtn.Position = UDim2.new(1, -44, 0, 14)
+		gpsBtn.BackgroundColor3 = C.SystemBlue
+		gpsBtn.Text = "📍"
+		gpsBtn.TextSize = 18
+		gpsBtn.BorderSizePixel = 0
+		gpsBtn.Parent = card
+		makeCorner(12, gpsBtn)
 
 		gpsBtn.MouseButton1Click:Connect(function()
-			self:ShowNotification("GPS Waypoint", "Waypoint set for " .. veh.Name, "📍")
+			self:ShowNotification("GPS Marked", "Waypoint set to " .. v.Name, "📍")
 			if self.OnVehicleAction then
-				self.OnVehicleAction(veh.Id, "track_gps")
+				self.OnVehicleAction(v.Id, "gps")
 			end
 		end)
 	end
 end
 
--- 5. SETTINGS APP
-function PhoneUI:BuildSettingsApp()
+--------------------------------------------------------------------------------
+-- App 5: Calculator (Interactive)
+--------------------------------------------------------------------------------
+function PhoneUI:BuildCalculatorApp(parent: Instance)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
-	local page = Instance.new("Frame")
-	page.Name = "App_settings"
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundColor3 = C.ScreenBg
-	page.BorderSizePixel = 0
-	page.Visible = false
-	page.Parent = self.AppContainer
+	local frame = self:CreateAppContainer("calculator", parent)
 
-	makeAppHeader("Settings", page, function() self:GoHome() end)
+	local calcDisplay = Instance.new("TextLabel")
+	calcDisplay.Size = UDim2.new(1, -32, 0, 64)
+	calcDisplay.Position = UDim2.new(0, 16, 0, 68)
+	calcDisplay.BackgroundTransparency = 1
+	calcDisplay.Font = F.Bold
+	calcDisplay.TextSize = 38
+	calcDisplay.TextColor3 = C.TextPrimary
+	calcDisplay.TextXAlignment = Enum.TextXAlignment.Right
+	calcDisplay.Text = "0"
+	calcDisplay.Parent = frame
 
-	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "SettingsScroll"
-	scroll.Size = UDim2.new(1, -24, 1, -54)
-	scroll.Position = UDim2.new(0, 12, 0, 48)
-	scroll.BackgroundTransparency = 1
-	scroll.ScrollBarThickness = 2
-	scroll.Parent = page
+	local keypad = Instance.new("Frame")
+	keypad.Size = UDim2.new(1, -32, 0, 360)
+	keypad.Position = UDim2.new(0, 16, 0, 150)
+	keypad.BackgroundTransparency = 1
+	keypad.Parent = frame
 
-	local list = Instance.new("UIListLayout")
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Padding = UDim.new(0, 14)
-	list.Parent = scroll
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.new(0, 60, 0, 60)
+	grid.CellPadding = UDim2.new(0, 12, 0, 12)
+	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	grid.Parent = keypad
 
-	-- Section 1: Connectivity Card
-	local card1 = Instance.new("Frame")
-	card1.Name = "Card_Connectivity"
-	card1.Size = UDim2.new(1, 0, 0, 138)
-	card1.BackgroundColor3 = C.CardBg
-	card1.BorderSizePixel = 0
-	card1.Parent = scroll
-	makeCorner(14, card1)
-	makeStroke(C.CardStroke, 1, card1)
+	local calcVal = "0"
+	local prevVal = 0
+	local curOp = ""
 
-	local function addToggleRow(parentCard: Instance, title: string, iconGlyph: string, defaultOn: boolean, yPos: number, callback: (bool: boolean) -> ())
-		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, 0, 0, 44)
-		row.Position = UDim2.new(0, 0, 0, yPos)
-		row.BackgroundTransparency = 1
-		row.Parent = parentCard
+	local buttons = {
+		{ "AC", C.SystemGray, Color3.fromRGB(0, 0, 0) },
+		{ "+/-", C.SystemGray, Color3.fromRGB(0, 0, 0) },
+		{ "%", C.SystemGray, Color3.fromRGB(0, 0, 0) },
+		{ "÷", C.SystemOrange, Color3.fromRGB(255, 255, 255) },
+		{ "7", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "8", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "9", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "×", C.SystemOrange, Color3.fromRGB(255, 255, 255) },
+		{ "4", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "5", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "6", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "-", C.SystemOrange, Color3.fromRGB(255, 255, 255) },
+		{ "1", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "2", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "3", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "+", C.SystemOrange, Color3.fromRGB(255, 255, 255) },
+		{ "0", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ ".", C.KeypadNumberBg, Color3.fromRGB(255, 255, 255) },
+		{ "=", C.SystemOrange, Color3.fromRGB(255, 255, 255) },
+	}
 
-		local icon = Instance.new("TextLabel")
-		icon.Size = UDim2.new(0, 28, 0, 28)
-		icon.Position = UDim2.new(0, 12, 0, 8)
-		icon.BackgroundColor3 = C.SystemBlue
-		icon.Font = F.Bold
-		icon.TextSize = 14
-		icon.TextColor3 = Color3.new(1, 1, 1)
-		icon.Text = iconGlyph
-		icon.Parent = row
-		makeCorner(6, icon)
+	for _, b in ipairs(buttons) do
+		local btn = Instance.new("TextButton")
+		btn.BackgroundColor3 = b[2]
+		btn.Text = b[1]
+		btn.Font = F.Bold
+		btn.TextSize = 20
+		btn.TextColor3 = b[3]
+		btn.BorderSizePixel = 0
+		btn.Parent = keypad
+		makeCorner(30, btn)
 
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Size = UDim2.new(0, 140, 1, 0)
-		tLabel.Position = UDim2.new(0, 48, 0, 0)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Font = F.Medium
-		tLabel.TextSize = 13
-		tLabel.TextColor3 = C.TextPrimary
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Text = title
-		tLabel.Parent = row
-
-		-- iOS Toggle Switch
-		local togglePill = Instance.new("TextButton")
-		togglePill.Size = UDim2.new(0, 44, 0, 24)
-		togglePill.Position = UDim2.new(1, -56, 0, 10)
-		togglePill.BackgroundColor3 = defaultOn and C.SwitchOn or C.SwitchOff
-		togglePill.Text = ""
-		togglePill.AutoButtonColor = false
-		togglePill.BorderSizePixel = 0
-		togglePill.Parent = row
-		makeCorner(12, togglePill)
-
-		local knob = Instance.new("Frame")
-		knob.Size = UDim2.new(0, 20, 0, 20)
-		knob.Position = defaultOn and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
-		knob.BackgroundColor3 = C.SwitchKnob
-		knob.BorderSizePixel = 0
-		knob.Parent = togglePill
-		makeCorner(10, knob)
-
-		local isOn = defaultOn
-		togglePill.MouseButton1Click:Connect(function()
-			isOn = not isOn
-			TweenService:Create(togglePill, PhoneTheme.Tweens.Fast, {
-				BackgroundColor3 = isOn and C.SwitchOn or C.SwitchOff
-			}):Play()
-			TweenService:Create(knob, PhoneTheme.Tweens.Bounce, {
-				Position = isOn and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
-			}):Play()
-			callback(isOn)
+		btn.MouseButton1Click:Connect(function()
+			local t = b[1]
+			if t == "AC" then
+				calcVal = "0"
+				prevVal = 0
+				curOp = ""
+			elseif t == "+/-" then
+				local n = tonumber(calcVal) or 0
+				calcVal = tostring(-n)
+			elseif t == "%" then
+				local n = tonumber(calcVal) or 0
+				calcVal = tostring(n / 100)
+			elseif t == "+" or t == "-" or t == "×" or t == "÷" then
+				prevVal = tonumber(calcVal) or 0
+				curOp = t
+				calcVal = "0"
+			elseif t == "=" then
+				local cur = tonumber(calcVal) or 0
+				if curOp == "+" then calcVal = tostring(prevVal + cur)
+				elseif curOp == "-" then calcVal = tostring(prevVal - cur)
+				elseif curOp == "×" then calcVal = tostring(prevVal * cur)
+				elseif curOp == "÷" then calcVal = cur ~= 0 and tostring(prevVal / cur) or "Error"
+				end
+				curOp = ""
+			else
+				if calcVal == "0" and t ~= "." then
+					calcVal = t
+				else
+					calcVal ..= t
+				end
+			end
+			calcDisplay.Text = calcVal
 		end)
 	end
-
-	addToggleRow(card1, "Airplane Mode", "✈️", false, 0, function(on)
-		self.State.AirplaneMode = on
-		self:ShowNotification("Settings", "Airplane Mode: " .. (on and "Enabled" or "Disabled"), "✈️")
-	end)
-	addToggleRow(card1, "Wi-Fi", "📡", true, 46, function(on)
-		self.State.WifiEnabled = on
-	end)
-	addToggleRow(card1, "Bluetooth", "🦷", true, 92, function(on)
-		self.State.BluetoothEnabled = on
-	end)
-
-	-- Section 2: About / Device Card
-	local card2 = Instance.new("Frame")
-	card2.Name = "Card_About"
-	card2.Size = UDim2.new(1, 0, 0, 92)
-	card2.BackgroundColor3 = C.CardBg
-	card2.BorderSizePixel = 0
-	card2.Parent = scroll
-	makeCorner(14, card2)
-	makeStroke(C.CardStroke, 1, card2)
-
-	local aboutHeader = Instance.new("TextLabel")
-	aboutHeader.Size = UDim2.new(1, -24, 0, 24)
-	aboutHeader.Position = UDim2.new(0, 12, 0, 10)
-	aboutHeader.BackgroundTransparency = 1
-	aboutHeader.Font = F.Bold
-	aboutHeader.TextSize = 13
-	aboutHeader.TextColor3 = C.TextPrimary
-	aboutHeader.TextXAlignment = Enum.TextXAlignment.Left
-	aboutHeader.Text = "Sky Phone 16 Pro Max"
-	aboutHeader.Parent = card2
-
-	local aboutSub = Instance.new("TextLabel")
-	aboutSub.Size = UDim2.new(1, -24, 0, 40)
-	aboutSub.Position = UDim2.new(0, 12, 0, 36)
-	aboutSub.BackgroundTransparency = 1
-	aboutSub.Font = F.Regular
-	aboutSub.TextSize = 11
-	aboutSub.TextColor3 = C.TextSecondary
-	aboutSub.TextXAlignment = Enum.TextXAlignment.Left
-	aboutSub.TextWrapped = true
-	aboutSub.Text = "SkyOS 18.2 (Antigravity Luau Edition)\nStorage: 256 GB (182 GB Available)"
-	aboutSub.Parent = card2
 end
 
--- 6. NOTES APP
-function PhoneUI:BuildNotesApp()
+--------------------------------------------------------------------------------
+-- App 6: Music Player
+--------------------------------------------------------------------------------
+function PhoneUI:BuildMusicApp(parent: Instance)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
-	local page = Instance.new("Frame")
-	page.Name = "App_notes"
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundColor3 = C.ScreenBg
-	page.BorderSizePixel = 0
-	page.Visible = false
-	page.Parent = self.AppContainer
+	local frame = self:CreateAppContainer("music", parent)
 
-	makeAppHeader("Notes", page, function() self:GoHome() end)
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -32, 0, 28)
+	title.Position = UDim2.new(0, 16, 0, 52)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 22
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Music"
+	title.Parent = frame
+
+	-- Album Art Vinyl
+	local art = Instance.new("Frame")
+	art.Size = UDim2.new(0, 220, 0, 220)
+	art.Position = UDim2.new(0.5, -110, 0, 90)
+	art.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+	art.BorderSizePixel = 0
+	art.Parent = frame
+	makeCorner(28, art)
+	makeStroke(C.CardStroke, 1, art)
+
+	local artGrad = Instance.new("UIGradient")
+	artGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 45, 85)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(88, 86, 214)),
+	})
+	artGrad.Rotation = 45
+	artGrad.Parent = art
+
+	local artIco = Instance.new("TextLabel")
+	artIco.Size = UDim2.new(1, 0, 1, 0)
+	artIco.BackgroundTransparency = 1
+	artIco.Text = "🎵"
+	artIco.TextSize = 72
+	artIco.Parent = art
+
+	local songTitle = Instance.new("TextLabel")
+	songTitle.Size = UDim2.new(1, -40, 0, 24)
+	songTitle.Position = UDim2.new(0, 20, 0, 330)
+	songTitle.BackgroundTransparency = 1
+	songTitle.Font = F.Bold
+	songTitle.TextSize = 18
+	songTitle.TextColor3 = C.TextPrimary
+	songTitle.Text = self.State.CurrentSong.Title
+	songTitle.Parent = frame
+
+	local artist = Instance.new("TextLabel")
+	artist.Size = UDim2.new(1, -40, 0, 18)
+	artist.Position = UDim2.new(0, 20, 0, 356)
+	artist.BackgroundTransparency = 1
+	artist.Font = F.Medium
+	artist.TextSize = 13
+	artist.TextColor3 = C.TextSecondary
+	artist.Text = self.State.CurrentSong.Artist
+	artist.Parent = frame
+
+	-- Scrub Bar
+	local scrub = Instance.new("Frame")
+	scrub.Size = UDim2.new(1, -48, 0, 4)
+	scrub.Position = UDim2.new(0, 24, 0, 395)
+	scrub.BackgroundColor3 = C.SliderBg
+	scrub.BorderSizePixel = 0
+	scrub.Parent = frame
+	makeCorner(2, scrub)
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.new(0.42, 0, 1, 0)
+	fill.BackgroundColor3 = C.TextPrimary
+	fill.BorderSizePixel = 0
+	fill.Parent = scrub
+	makeCorner(2, fill)
+
+	-- Transport Controls
+	local transport = Instance.new("Frame")
+	transport.Size = UDim2.new(1, -60, 0, 64)
+	transport.Position = UDim2.new(0, 30, 0, 420)
+	transport.BackgroundTransparency = 1
+	transport.Parent = frame
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 28)
+	layout.Parent = transport
+
+	local prevBtn = Instance.new("TextButton")
+	prevBtn.Size = UDim2.new(0, 44, 0, 44)
+	prevBtn.BackgroundTransparency = 1
+	prevBtn.Text = "⏮️"
+	prevBtn.TextSize = 24
+	prevBtn.Parent = transport
+
+	local playBig = Instance.new("TextButton")
+	playBig.Size = UDim2.new(0, 60, 0, 60)
+	playBig.BackgroundColor3 = C.SystemBlue
+	playBig.Text = "▶️"
+	playBig.TextSize = 22
+	playBig.BorderSizePixel = 0
+	playBig.Parent = transport
+	makeCorner(30, playBig)
+
+	local nextBtn = Instance.new("TextButton")
+	nextBtn.Size = UDim2.new(0, 44, 0, 44)
+	nextBtn.BackgroundTransparency = 1
+	nextBtn.Text = "⏭️"
+	nextBtn.TextSize = 24
+	nextBtn.Parent = transport
+
+	playBig.MouseButton1Click:Connect(function()
+		self.State.IsPlayingMusic = not self.State.IsPlayingMusic
+		playBig.Text = self.State.IsPlayingMusic and "⏸️" or "▶️"
+		self.IslandDot.Visible = self.State.IsPlayingMusic
+		self.IslandTitle.Text = self.State.CurrentSong.Title
+		self.IslandSub.Text = self.State.CurrentSong.Artist
+	end)
+end
+
+--------------------------------------------------------------------------------
+-- App 7: Crypto Wallet
+--------------------------------------------------------------------------------
+function PhoneUI:BuildCryptoApp(parent: Instance)
+	local C = PhoneTheme.Colors
+	local F = PhoneTheme.Fonts
+
+	local frame = self:CreateAppContainer("crypto", parent)
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -32, 0, 28)
+	title.Position = UDim2.new(0, 16, 0, 52)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 22
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Crypto Wallet"
+	title.Parent = frame
+
+	local coins = {
+		{ Name = "Bitcoin", Symbol = "BTC", Price = "$64,280", Change = "+4.2%", Up = true },
+		{ Name = "Ethereum", Symbol = "ETH", Price = "$3,450", Change = "+1.8%", Up = true },
+		{ Name = "SkyCoin", Symbol = "SKY", Price = "$14.80", Change = "-0.6%", Up = false },
+	}
 
 	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "NotesScroll"
-	scroll.Size = UDim2.new(1, -24, 1, -54)
-	scroll.Position = UDim2.new(0, 12, 0, 48)
+	scroll.Size = UDim2.new(1, -24, 0, 460)
+	scroll.Position = UDim2.new(0, 12, 0, 90)
 	scroll.BackgroundTransparency = 1
-	scroll.ScrollBarThickness = 2
-	scroll.Parent = page
+	scroll.Parent = frame
 
 	local list = Instance.new("UIListLayout")
-	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Padding = UDim.new(0, 10)
 	list.Parent = scroll
 
-	local sampleNotes = {
-		{ Title = "Apartment Keypad Code", Content = "Building 4, Code: #4829", Date = "Today" },
-		{ Title = "Vehicle Parts List", Content = "1. Twin Turbo Kit\n2. Sport Tires\n3. ECU Tune", Date = "Yesterday" },
-		{ Title = "Bank Wire Contacts", Content = "Alex Morgan (555-0142)", Date = "Sep 8" },
-	}
-
-	for i, note in ipairs(sampleNotes) do
+	for _, coin in ipairs(coins) do
 		local card = Instance.new("Frame")
-		card.Name = "Note_" .. i
 		card.Size = UDim2.new(1, 0, 0, 72)
 		card.BackgroundColor3 = C.CardBg
 		card.BorderSizePixel = 0
 		card.Parent = scroll
-		makeCorner(12, card)
+		makeCorner(16, card)
 		makeStroke(C.CardStroke, 1, card)
 
-		local nTitle = Instance.new("TextLabel")
-		nTitle.Size = UDim2.new(1, -24, 0, 20)
-		nTitle.Position = UDim2.new(0, 12, 0, 8)
-		nTitle.BackgroundTransparency = 1
-		nTitle.Font = F.Bold
-		nTitle.TextSize = 13
-		nTitle.TextColor3 = C.TextPrimary
-		nTitle.TextXAlignment = Enum.TextXAlignment.Left
-		nTitle.Text = note.Title
-		nTitle.Parent = card
+		local cName = Instance.new("TextLabel")
+		cName.Size = UDim2.new(0.5, 0, 0, 20)
+		cName.Position = UDim2.new(0, 14, 0, 14)
+		cName.BackgroundTransparency = 1
+		cName.Font = F.Bold
+		cName.TextSize = 14
+		cName.TextColor3 = C.TextPrimary
+		cName.TextXAlignment = Enum.TextXAlignment.Left
+		cName.Text = coin.Name .. " (" .. coin.Symbol .. ")"
+		cName.Parent = card
 
-		local nContent = Instance.new("TextLabel")
-		nContent.Size = UDim2.new(1, -24, 0, 32)
-		nContent.Position = UDim2.new(0, 12, 0, 30)
-		nContent.BackgroundTransparency = 1
-		nContent.Font = F.Regular
-		nContent.TextSize = 11
-		nContent.TextColor3 = C.TextSecondary
-		nContent.TextXAlignment = Enum.TextXAlignment.Left
-		nContent.TextTruncate = Enum.TextTruncate.AtEnd
-		nContent.Text = note.Content
-		nContent.Parent = card
+		local cPrice = Instance.new("TextLabel")
+		cPrice.Size = UDim2.new(0.4, 0, 0, 20)
+		cPrice.Position = UDim2.new(1, -120, 0, 14)
+		cPrice.BackgroundTransparency = 1
+		cPrice.Font = F.Bold
+		cPrice.TextSize = 14
+		cPrice.TextColor3 = C.TextPrimary
+		cPrice.TextXAlignment = Enum.TextXAlignment.Right
+		cPrice.Text = coin.Price
+		cPrice.Parent = card
+
+		local cChange = Instance.new("TextLabel")
+		cChange.Size = UDim2.new(0.4, 0, 0, 16)
+		cChange.Position = UDim2.new(1, -120, 0, 36)
+		cChange.BackgroundTransparency = 1
+		cChange.Font = F.Medium
+		cChange.TextSize = 11
+		cChange.TextColor3 = coin.Up and C.SystemGreen or C.SystemRed
+		cChange.TextXAlignment = Enum.TextXAlignment.Right
+		cChange.Text = coin.Change
+		cChange.Parent = card
 	end
 end
 
--- 7. CAMERA APP
-function PhoneUI:BuildCameraApp()
+--------------------------------------------------------------------------------
+-- App 8: Settings (Appearance, Wallpapers, Chassis)
+--------------------------------------------------------------------------------
+function PhoneUI:BuildSettingsApp(parent: Instance)
 	local C = PhoneTheme.Colors
 	local F = PhoneTheme.Fonts
 
-	local page = Instance.new("Frame")
-	page.Name = "App_camera"
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	page.BorderSizePixel = 0
-	page.Visible = false
-	page.Parent = self.AppContainer
+	local frame = self:CreateAppContainer("settings", parent)
 
-	-- Top Camera Controls
-	local topBar = Instance.new("Frame")
-	topBar.Size = UDim2.new(1, 0, 0, 48)
-	topBar.BackgroundTransparency = 1
-	topBar.Parent = page
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -32, 0, 28)
+	title.Position = UDim2.new(0, 16, 0, 52)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 22
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Settings"
+	title.Parent = frame
 
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.Size = UDim2.new(0, 36, 0, 36)
-	closeBtn.Position = UDim2.new(0, 10, 0, 6)
-	closeBtn.BackgroundTransparency = 1
-	closeBtn.Font = F.Bold
-	closeBtn.TextSize = 18
-	closeBtn.TextColor3 = Color3.new(1, 1, 1)
-	closeBtn.Text = "✕"
-	closeBtn.Parent = topBar
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, -24, 0, 480)
+	scroll.Position = UDim2.new(0, 12, 0, 90)
+	scroll.BackgroundTransparency = 1
+	scroll.ScrollBarThickness = 3
+	scroll.Parent = frame
 
-	closeBtn.MouseButton1Click:Connect(function()
-		self:GoHome()
-	end)
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 14)
+	list.Parent = scroll
 
-	-- Viewfinder Crosshair Center
+	-- Profile Card
+	local prof = Instance.new("Frame")
+	prof.Size = UDim2.new(1, 0, 0, 68)
+	prof.BackgroundColor3 = C.CardBg
+	prof.BorderSizePixel = 0
+	prof.Parent = scroll
+	makeCorner(16, prof)
+
+	local pAva = Instance.new("TextLabel")
+	pAva.Size = UDim2.new(0, 44, 0, 44)
+	pAva.Position = UDim2.new(0, 12, 0.5, -22)
+	pAva.BackgroundColor3 = C.SystemBlue
+	pAva.Text = "👤"
+	pAva.TextSize = 22
+	pAva.BorderSizePixel = 0
+	pAva.Parent = prof
+	makeCorner(22, pAva)
+
+	local pName = Instance.new("TextLabel")
+	pName.Size = UDim2.new(1, -74, 0, 20)
+	pName.Position = UDim2.new(0, 66, 0, 14)
+	pName.BackgroundTransparency = 1
+	pName.Font = F.Bold
+	pName.TextSize = 14
+	pName.TextColor3 = C.TextPrimary
+	pName.TextXAlignment = Enum.TextXAlignment.Left
+	pName.Text = "Citizen Account"
+	pName.Parent = prof
+
+	local pSub = Instance.new("TextLabel")
+	pSub.Size = UDim2.new(1, -74, 0, 16)
+	pSub.Position = UDim2.new(0, 66, 0, 36)
+	pSub.BackgroundTransparency = 1
+	pSub.Font = F.Regular
+	pSub.TextSize = 11
+	pSub.TextColor3 = C.TextSecondary
+	pSub.TextXAlignment = Enum.TextXAlignment.Left
+	pSub.Text = "SkyOS 18 · Antigravity"
+	pSub.Parent = prof
+
+	-- Frame Color Picker Card
+	local frameCard = Instance.new("Frame")
+	frameCard.Size = UDim2.new(1, 0, 0, 80)
+	frameCard.BackgroundColor3 = C.CardBg
+	frameCard.BorderSizePixel = 0
+	frameCard.Parent = scroll
+	makeCorner(16, frameCard)
+
+	local fcTitle = Instance.new("TextLabel")
+	fcTitle.Size = UDim2.new(1, -24, 0, 20)
+	fcTitle.Position = UDim2.new(0, 12, 0, 8)
+	fcTitle.BackgroundTransparency = 1
+	fcTitle.Font = F.Bold
+	fcTitle.TextSize = 12
+	fcTitle.TextColor3 = C.TextPrimary
+	fcTitle.TextXAlignment = Enum.TextXAlignment.Left
+	fcTitle.Text = "Chassis Color Finish"
+	fcTitle.Parent = frameCard
+
+	local swatches = Instance.new("Frame")
+	swatches.Size = UDim2.new(1, -24, 0, 36)
+	swatches.Position = UDim2.new(0, 12, 0, 32)
+	swatches.BackgroundTransparency = 1
+	swatches.Parent = frameCard
+
+	local sList = Instance.new("UIListLayout")
+	sList.FillDirection = Enum.FillDirection.Horizontal
+	sList.Padding = UDim.new(0, 10)
+	sList.Parent = swatches
+
+	local finishes = {
+		{ Name = "SpaceGray", Color = C.Frames.SpaceGray },
+		{ Name = "DeepPurple", Color = C.Frames.DeepPurple },
+		{ Name = "AlpineGreen", Color = C.Frames.AlpineGreen },
+		{ Name = "SierraBlue", Color = C.Frames.SierraBlue },
+		{ Name = "ProductRed", Color = C.Frames.ProductRed },
+		{ Name = "TitaniumGold", Color = C.Frames.TitaniumGold },
+	}
+
+	for _, f in ipairs(finishes) do
+		local b = Instance.new("TextButton")
+		b.Size = UDim2.new(0, 32, 0, 32)
+		b.BackgroundColor3 = f.Color
+		b.Text = ""
+		b.BorderSizePixel = 0
+		b.Parent = swatches
+		makeCorner(16, b)
+		makeStroke(Color3.fromRGB(80, 80, 90), 1, b)
+
+		b.MouseButton1Click:Connect(function()
+			self.Bezel.BackgroundColor3 = f.Color
+			self:ShowNotification("Chassis Updated", "Finish: " .. f.Name, "🎨")
+		end)
+	end
+end
+
+--------------------------------------------------------------------------------
+-- App 9: Notes
+--------------------------------------------------------------------------------
+function PhoneUI:BuildNotesApp(parent: Instance)
+	local C = PhoneTheme.Colors
+	local F = PhoneTheme.Fonts
+
+	local frame = self:CreateAppContainer("notes", parent)
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -32, 0, 28)
+	title.Position = UDim2.new(0, 16, 0, 52)
+	title.BackgroundTransparency = 1
+	title.Font = F.Bold
+	title.TextSize = 22
+	title.TextColor3 = C.TextPrimary
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Notes"
+	title.Parent = frame
+
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(1, -24, 0, 460)
+	scroll.Position = UDim2.new(0, 12, 0, 90)
+	scroll.BackgroundTransparency = 1
+	scroll.Parent = frame
+
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 8)
+	list.Parent = scroll
+
+	local sampleNotes = {
+		{ Title = "Penthouse Gate Code", Text = "#9842 - Don't share with anyone" },
+		{ Title = "Garage Parts List", Text = "Turbo stage 3, sport slicks, carbon diffuser" },
+		{ Title = "Weazel News Tip", Text = "Meeting informant at dock warehouse 12" },
+	}
+
+	for _, n in ipairs(sampleNotes) do
+		local card = Instance.new("Frame")
+		card.Size = UDim2.new(1, 0, 0, 60)
+		card.BackgroundColor3 = C.CardBg
+		card.BorderSizePixel = 0
+		card.Parent = scroll
+		makeCorner(14, card)
+		makeStroke(C.CardStroke, 1, card)
+
+		local tLbl = Instance.new("TextLabel")
+		tLbl.Size = UDim2.new(1, -20, 0, 20)
+		tLbl.Position = UDim2.new(0, 12, 0, 10)
+		tLbl.BackgroundTransparency = 1
+		tLbl.Font = F.Bold
+		tLbl.TextSize = 13
+		tLbl.TextColor3 = C.TextPrimary
+		tLbl.TextXAlignment = Enum.TextXAlignment.Left
+		tLbl.Text = n.Title
+		tLbl.Parent = card
+
+		local dLbl = Instance.new("TextLabel")
+		dLbl.Size = UDim2.new(1, -20, 0, 16)
+		dLbl.Position = UDim2.new(0, 12, 0, 30)
+		dLbl.BackgroundTransparency = 1
+		dLbl.Font = F.Regular
+		dLbl.TextSize = 11
+		dLbl.TextColor3 = C.TextSecondary
+		dLbl.TextXAlignment = Enum.TextXAlignment.Left
+		dLbl.Text = n.Text
+		dLbl.Parent = card
+	end
+end
+
+--------------------------------------------------------------------------------
+-- App 10: Camera
+--------------------------------------------------------------------------------
+function PhoneUI:BuildCameraApp(parent: Instance)
+	local C = PhoneTheme.Colors
+	local F = PhoneTheme.Fonts
+
+	local frame = self:CreateAppContainer("camera", parent)
+	frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+
+	-- Viewfinder Reticle
 	local reticle = Instance.new("Frame")
-	reticle.Size = UDim2.new(0, 60, 0, 60)
+	reticle.Size = UDim2.new(0, 64, 0, 64)
 	reticle.AnchorPoint = Vector2.new(0.5, 0.5)
 	reticle.Position = UDim2.new(0.5, 0, 0.45, 0)
 	reticle.BackgroundTransparency = 1
-	reticle.Parent = page
-	makeCorner(30, reticle)
-	makeStroke(Color3.fromRGB(255, 214, 10), 1.5, reticle, 0.5)
+	reticle.Parent = frame
+	makeStroke(Color3.fromRGB(255, 214, 10), 1, reticle)
 
-	-- Bottom Shutter Row
-	local shutterBar = Instance.new("Frame")
-	shutterBar.Size = UDim2.new(1, 0, 0, 100)
-	shutterBar.AnchorPoint = Vector2.new(0, 1)
-	shutterBar.Position = UDim2.new(0, 0, 1, 0)
-	shutterBar.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-	shutterBar.BorderSizePixel = 0
-	shutterBar.Parent = page
+	-- Shutter Button
+	local shutter = Instance.new("TextButton")
+	shutter.Size = UDim2.new(0, 68, 0, 68)
+	shutter.AnchorPoint = Vector2.new(0.5, 1)
+	shutter.Position = UDim2.new(0.5, 0, 1, -48)
+	shutter.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	shutter.Text = ""
+	shutter.BorderSizePixel = 0
+	shutter.Parent = frame
+	makeCorner(34, shutter)
+	makeStroke(Color3.fromRGB(80, 80, 80), 4, shutter)
 
-	local shutterRing = Instance.new("Frame")
-	shutterRing.Size = UDim2.new(0, 68, 0, 68)
-	shutterRing.AnchorPoint = Vector2.new(0.5, 0.5)
-	shutterRing.Position = UDim2.new(0.5, 0, 0.5, 0)
-	shutterRing.BackgroundTransparency = 1
-	shutterRing.Parent = shutterBar
-	makeCorner(34, shutterRing)
-	makeStroke(Color3.new(1, 1, 1), 3.5, shutterRing)
+	shutter.MouseButton1Click:Connect(function()
+		-- Screen flash animation
+		local flash = Instance.new("Frame")
+		flash.Size = UDim2.new(1, 0, 1, 0)
+		flash.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		flash.BorderSizePixel = 0
+		flash.ZIndex = 99
+		flash.Parent = frame
 
-	local shutterBtn = Instance.new("TextButton")
-	shutterBtn.Size = UDim2.new(0, 54, 0, 54)
-	shutterBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-	shutterBtn.Position = UDim2.new(0.5, 0, 0.5, 0)
-	shutterBtn.BackgroundColor3 = Color3.new(1, 1, 1)
-	shutterBtn.Text = ""
-	shutterBtn.BorderSizePixel = 0
-	shutterBtn.Parent = shutterBar
-	makeCorner(27, shutterBtn)
-
-	-- Flash effect
-	local flash = Instance.new("Frame")
-	flash.Size = UDim2.new(1, 0, 1, 0)
-	flash.BackgroundColor3 = Color3.new(1, 1, 1)
-	flash.BackgroundTransparency = 1
-	flash.ZIndex = 100
-	flash.BorderSizePixel = 0
-	flash.Parent = page
-
-	shutterBtn.MouseButton1Click:Connect(function()
-		flash.BackgroundTransparency = 0
-		TweenService:Create(flash, PhoneTheme.Tweens.Fast, { BackgroundTransparency = 1 }):Play()
-		self:ShowNotification("Camera", "Photo captured and saved to Photos", "📷")
+		local tw = TweenService:Create(flash, TweenInfo.new(0.2), { BackgroundTransparency = 1 })
+		tw:Play()
+		tw.Completed:Connect(function()
+			flash:Destroy()
+		end)
+		self:ShowNotification("Camera", "Photo saved to Photos.", "📷")
 	end)
 end
 
 --------------------------------------------------------------------------------
--- Navigation & State Control
+-- Navigation & App Switching
 --------------------------------------------------------------------------------
 function PhoneUI:OpenApp(appId: string)
-	local targetApp = self.AppContainer:FindFirstChild("App_" .. appId)
-	if not targetApp then
-		self:ShowNotification("App Store", "App '" .. appId .. "' installed.", "📱")
-		return
+	local T = PhoneTheme.Tweens
+	local container = self.AppContainers[appId]
+	if not container then return end
+
+	if self.State.CurrentApp and self.AppContainers[self.State.CurrentApp] then
+		self.AppContainers[self.State.CurrentApp].Visible = false
 	end
 
 	self.State.CurrentApp = appId
 	self.Springboard.Visible = false
 	self.Dock.Visible = false
-	self.AppContainer.Visible = true
+	container.Visible = true
+	container.Position = UDim2.new(0, 0, 1, 0)
 
-	-- Hide all apps then reveal target
-	for _, child in ipairs(self.AppContainer:GetChildren()) do
-		if child:IsA("Frame") then
-			child.Visible = (child.Name == "App_" .. appId)
-		end
-	end
+	TweenService:Create(container, T.Spring, {
+		Position = UDim2.new(0, 0, 0, 0)
+	}):Play()
 end
 
 function PhoneUI:GoHome()
+	local T = PhoneTheme.Tweens
+	if self.State.CurrentApp and self.AppContainers[self.State.CurrentApp] then
+		local current = self.AppContainers[self.State.CurrentApp]
+		local tw = TweenService:Create(current, T.FastSpring, {
+			Position = UDim2.new(0, 0, 1, 0)
+		})
+		tw:Play()
+		tw.Completed:Connect(function()
+			current.Visible = false
+		end)
+	end
+
 	self.State.CurrentApp = nil
-	self.AppContainer.Visible = false
 	self.Springboard.Visible = true
 	self.Dock.Visible = true
 end
 
 function PhoneUI:Unlock()
+	local T = PhoneTheme.Tweens
 	self.State.IsLocked = false
-	local tween = TweenService:Create(self.LockScreen, PhoneTheme.Tweens.Normal, {
+	local tw = TweenService:Create(self.LockScreen, T.FastSpring, {
 		Position = UDim2.new(0, 0, -1, 0)
 	})
-	tween:Play()
-	tween.Completed:Connect(function()
+	tw:Play()
+	tw.Completed:Connect(function()
 		self.LockScreen.Visible = false
 	end)
 end
 
 function PhoneUI:Lock()
+	local T = PhoneTheme.Tweens
 	self.State.IsLocked = true
-	self:GoHome()
 	self.LockScreen.Visible = true
-	self.LockScreen.Position = UDim2.new(0, 0, -1, 0)
-	TweenService:Create(self.LockScreen, PhoneTheme.Tweens.Normal, {
+	TweenService:Create(self.LockScreen, T.FastSpring, {
 		Position = UDim2.new(0, 0, 0, 0)
 	}):Play()
 end
 
 function PhoneUI:SetVisible(visible: boolean)
+	local T = PhoneTheme.Tweens
 	self.State.IsOpen = visible
-	local targetPos = visible
-		and UDim2.new(1, -24, 1, -20)
-		or UDim2.new(1, -24, 1, 680)
 
-	TweenService:Create(self.Chassis, PhoneTheme.Tweens.Normal, {
-		Position = targetPos
-	}):Play()
+	if visible then
+		TweenService:Create(self.Root, T.Spring, {
+			Position = UDim2.new(1, -32, 1, -32)
+		}):Play()
+	else
+		TweenService:Create(self.Root, T.FastSpring, {
+			Position = UDim2.new(1, -32, 1, 700)
+		}):Play()
+	end
 end
 
 function PhoneUI:Toggle()
 	self:SetVisible(not self.State.IsOpen)
 end
 
---------------------------------------------------------------------------------
--- Real-time Clock Loop
---------------------------------------------------------------------------------
 function PhoneUI:StartClockLoop()
 	task.spawn(function()
 		while true do
 			local timeStr = os.date("%H:%M")
 			local dateStr = os.date("%A, %B %d")
 
-			if self.StatusTimeLabel then
-				self.StatusTimeLabel.Text = timeStr
+			if self.StatusClockLabel then
+				self.StatusClockLabel.Text = timeStr
 			end
 			if self.LockClockLabel then
 				self.LockClockLabel.Text = timeStr
 			end
 			if self.LockDateLabel then
 				self.LockDateLabel.Text = dateStr
-			end
-
-			-- Update active call duration
-			if self.State.ActiveCall and self.CallTimerLabel then
-				local elapsed = math.floor(os.clock() - self.State.ActiveCall.StartTime)
-				local mins = math.floor(elapsed / 60)
-				local secs = elapsed % 60
-				self.CallTimerLabel.Text = string.format("Connected %02d:%02d", mins, secs)
 			end
 
 			task.wait(1)
