@@ -1,0 +1,497 @@
+.messages-sky-state-scroll,
+.messages-sky-loading {
+  display: grid;
+  place-items: center;
+}
+
+.messages-sky-state-scroll :deep(.sky-empty-state) {
+  margin: auto;
+}
+
+.messages-sky-edit {
+  color: var(--sky-app-accent);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.messages-sky-search {
+  min-width: 0;
+  width: 100%;
+  flex: 1;
+}
+
+.messages-sky-inbox-toolbar :deep(.sky-toolbar__inner) {
+  width: 100%;
+}
+
+.messages-sky-inbox-scroll {
+  padding-top: 4px;
+}
+
+.messages-sky-conversation-list {
+  margin: 0 calc(var(--sky-page-gutter) * -1);
+}
+
+.messages-sky-conversation :deep(.sky-list-item__row) {
+  min-height: 72px;
+}
+
+.messages-sky-conversation :deep(.sky-list-item__content) {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.messages-sky-conversation :deep(.sky-list-item__media) {
+  position: relative;
+}
+
+.messages-conversation-media {
+  display: grid;
+  grid-template-columns: 10px 50px;
+  align-items: center;
+  gap: var(--sky-space-2);
+}
+
+.messages-sky-conversation :deep(.sky-list-item__title) {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messages-sky-conversation--unread :deep(.sky-list-item__title) {
+  font-weight: 760;
+}
+
+.messages-sky-conversation :deep(.sky-list-item__subtitle) {
+  overflow: hidden;
+  display: -webkit-box;
+  color: var(--sky-muted);
+  font-size: 12px;
+  line-height: 16px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.messages-sky-conversation-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--sky-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.messages-sky-selection {
+  position: absolute;
+  z-index: 2;
+  border-radius: 50%;
+}
+
+.messages-sky-selection {
+  right: -3px;
+  bottom: -2px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--sky-bg);
+  background: var(--sky-surface-muted);
+  color: #fff;
+}
+
+.messages-sky-selection.is-selected {
+  background: var(--sky-app-accent);
+}
+
+.messages-sky-unread-slot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sky-app-accent);
+  opacity: 0;
+}
+
+.messages-sky-unread-slot.is-visible {
+  opacity: 1;
+}
+
+.messages-sky-empty {
+  min-height: 65%;
+}
+
+.messages-sky-edit-navigation :deep(.sky-button) {
+  min-width: 132px;
+}
+
+.messages-sky-compose-scroll {
+  padding-top: 2px;
+}
+
+.messages-recipient-field,
+.messages-contact-list {
+  margin: 0 calc(var(--sky-page-gutter) * -1) 12px;
+  border-top: 1px solid var(--sky-hairline);
+  border-bottom: 1px solid var(--sky-hairline);
+  background: transparent;
+}
+
+.messages-recipient-field :deep(.sky-field) {
+  min-height: 52px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  background: transparent;
+}
+
+.messages-recipient-field :deep(.sky-field__inner) {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+
+.messages-contact-list :deep(.sky-list-item__row) {
+  background: transparent;
+}
+
+.messages-recipient-field :deep(.sky-field__label) {
+  margin: 0;
+  flex: none;
+  color: var(--sky-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.messages-recipient-field :deep(.sky-field__control),
+.messages-recipient-field :deep(.sky-field__input) {
+  min-height: 52px;
+}
+
+.messages-recipient-field :deep(.sky-field__control) {
+  flex: 1;
+  margin: 0;
+}
+
+.messages-recipient-field :deep(.sky-field__input) {
+  font-size: 15px;
+}
+
+.messages-number-action {
+  margin: 0;
+}
+
+.messages-sky-loading {
+  min-height: 120px;
+  color: var(--sky-app-accent);
+}
+
+.messages-sky-thread-navbar :deep(.sky-navbar__heading) {
+  overflow: visible;
+}
+
+.messages-sky-thread-contact {
+  width: 100%;
+  min-width: 0;
+  height: var(--sky-navbar-height);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--sky-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.messages-sky-thread-contact > span:not(.messages-avatar) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messages-avatar--thread {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--sky-hairline);
+  box-shadow: none;
+  font-size: 12px;
+}
+
+.messages-sky-thread-scroll {
+  padding: 4px 14px 10px;
+  transition: padding-bottom 240ms ease;
+}
+
+.messages-bubbles {
+  min-height: 100%;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.messages-bubbles :deep(.sky-message) {
+  max-width: 86%;
+  margin-bottom: 7px;
+}
+
+.messages-bubbles :deep(.sky-message__bubble) {
+  padding: 8px 12px;
+  border-radius: 19px;
+  font-size: 15px;
+  line-height: 19px;
+}
+
+.messages-bubbles :deep(.sky-message--received .sky-message__bubble) {
+  background: var(--sky-message-received-background);
+  color: var(--sky-text);
+}
+
+.messages-bubbles :deep(.sky-message--sent .sky-message__bubble) {
+  background: var(--sky-app-accent);
+  color: #fff;
+}
+
+.messages-bubbles :deep(.sky-message__text-footer) {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 13px;
+}
+
+.messages-bubbles :deep(.messages-message--failed .sky-message__bubble) {
+  box-shadow: 0 0 0 1px var(--sky-danger);
+}
+
+.messages-sky-composer-shell {
+  z-index: 42;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--sky-space-2);
+  padding: 6px var(--sky-page-gutter) calc(var(--sky-safe-area-bottom) + 6px);
+  background: var(--sky-bg);
+}
+
+.messages-sky-composer-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sky-space-2);
+}
+
+.messages-sky-composer-pill {
+  min-width: 0;
+  min-height: 56px;
+  padding: 5px 7px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border-radius: var(--sky-radius-pill);
+}
+
+.messages-sky-messagebar {
+  min-width: 0;
+  padding: 0;
+  flex: 1;
+  gap: 4px;
+  background: transparent;
+}
+
+.messages-sky-composer-pill > .messages-sky-messagebar {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.messages-sky-messagebar :deep(textarea) {
+  min-height: 44px;
+  padding: 11px 8px 9px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--sky-text);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.messages-sky-messagebar__action,
+.messages-sky-messagebar__send {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.messages-sky-messagebar__action {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-color: transparent;
+  background: var(--sky-surface-variant);
+  color: var(--sky-text);
+  box-shadow: none;
+}
+
+.messages-sky-messagebar__plus {
+  transition: transform 180ms ease;
+}
+
+.messages-sky-messagebar__plus.active {
+  color: var(--sky-app-accent);
+  transform: rotate(45deg);
+}
+
+.messages-sky-messagebar__send {
+  color: var(--sky-app-accent);
+}
+
+.messages-pending-media {
+  display: flex;
+  gap: var(--sky-space-2);
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: none;
+}
+
+.messages-pending-media::-webkit-scrollbar {
+  display: none;
+}
+
+.messages-pending-media__item {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  overflow: visible;
+  border-radius: var(--sky-radius-card);
+  background: var(--sky-surface-muted);
+}
+
+.messages-pending-media__item > img,
+.messages-pending-media__item > video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.messages-pending-media__item > button {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--sky-bg);
+  border-radius: 50%;
+  background: var(--sky-text);
+  color: var(--sky-bg);
+}
+
+.messages-pending-media__item > button:disabled {
+  opacity: 0.45;
+}
+
+.messages-recorder__send {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  padding: 0;
+  color: var(--sky-app-accent);
+}
+
+.messages-recorder__wave i {
+  width: auto;
+  min-width: 1px;
+  flex: 1 1 2px;
+}
+
+.messages-sky-unavailable {
+  padding: 12px 18px calc(var(--sky-safe-area-bottom) + 12px);
+  color: var(--sky-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.messages-sky-thread--panel .messages-sky-thread-scroll {
+  padding-bottom: 326px;
+}
+
+.messages-sky-thread--share .messages-sky-thread-scroll {
+  padding-bottom: 150px;
+}
+
+.messages-contact-overlay {
+  position: absolute;
+  z-index: 58;
+  inset: 0;
+}
+
+.messages-contact-overlay__scroll {
+  padding-top: 4px;
+}
+
+.messages-contact-profile__hero {
+  padding: var(--sky-space-3) 0 var(--sky-space-4);
+  display: grid;
+  justify-items: center;
+  gap: var(--sky-space-2);
+  text-align: center;
+}
+
+.messages-contact-profile__hero h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+}
+
+.messages-contact-profile__hero small {
+  color: var(--sky-muted);
+  font-size: 12px;
+}
+
+.messages-contact-profile__actions {
+  width: min(100%, 256px);
+  margin: 0 auto var(--sky-space-5);
+  display: flex;
+  justify-content: center;
+  gap: var(--sky-space-3);
+}
+
+.messages-contact-profile__actions :deep(.sky-button) {
+  width: 56px;
+  min-width: 56px;
+  height: 56px;
+  min-height: 56px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.messages-contact-profile__details,
+.messages-contact-profile__options {
+  margin-right: calc(var(--sky-page-gutter) * -1);
+  margin-left: calc(var(--sky-page-gutter) * -1);
+}
+
+.messages-gif-search {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .messages-sky-thread-scroll,
+  .messages-sky-messagebar__plus {
+    transition: none;
+  }
+}

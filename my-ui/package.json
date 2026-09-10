@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "test:preview": "playwright test",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "build:roblox": "node --experimental-strip-types ../scripts/build-roblox.mjs",
     "test:roblox-build": "node --experimental-strip-types ../scripts/test-roblox-build.mjs",
     "generate:roblox-api": "node ../scripts/generate-roblox-api.mjs",
