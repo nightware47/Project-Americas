@@ -12972,3 +12972,338 @@
   .phone-messages { grid-template-columns: 42% 1fr; }
   .phone-conversations time, .phone-conversations b { display: none; }
 }
+
+
+/* ==========================================================================
+   AUTHENTIC SKY SYSTEMS PHONE (SKY_PHONE) SPRINGBOARD & WIDGET STYLES
+   ========================================================================== */
+
+/* Authentic cosmic twilight wallpaper matching Sky Phone reference */
+.phone-springboard {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 8%, rgba(68, 28, 107, 0.6) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 50% at 50% 90%, rgba(14, 34, 61, 0.7) 0%, transparent 80%),
+    linear-gradient(180deg, #180d28 0%, #1d1235 35%, #151a38 70%, #0c1426 100%) !important;
+  color: #fff;
+  user-select: none;
+}
+
+.phone-springboard-scroll {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 104px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 58px 16px 16px 16px;
+  scrollbar-width: none;
+}
+.phone-springboard-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Widgets Container */
+.phone-widgets-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.phone-widgets-top-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.phone-widget-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  flex: 1;
+}
+.phone-widget-unit:active {
+  transform: scale(0.96);
+}
+
+.phone-widget-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  letter-spacing: -0.01em;
+}
+
+/* Card Base */
+.phone-widget-card {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 22px;
+  padding: 14px 14px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Clock Widget (Exact Sky Phone Look) */
+.phone-widget-clock-card {
+  background: #1c1c1e !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.phone-widget-clock-day {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8e8e93;
+}
+.phone-widget-clock-time {
+  font-size: 32px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin: 2px 0;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.phone-widget-clock-date {
+  font-size: 11px;
+  font-weight: 500;
+  color: #8e8e93;
+  line-height: 1.2;
+}
+
+/* Weather Widget (Exact Sky Phone Look) */
+.phone-widget-weather-card {
+  background: linear-gradient(145deg, #1c3b70 0%, #2f65a7 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+.phone-widget-weather-city {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+.phone-widget-weather-temp {
+  font-size: 36px;
+  font-weight: 300;
+  color: #ffffff;
+  line-height: 1;
+  margin: 2px 0;
+}
+.phone-widget-weather-desc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+}
+.phone-widget-weather-icon {
+  font-size: 13px;
+}
+.phone-widget-weather-hl {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Music Widget (4x2 Wide Card) */
+.phone-widget-music-unit {
+  width: 100%;
+}
+.phone-widget-music-card {
+  width: 100%;
+  aspect-ratio: auto !important;
+  height: 98px;
+  background: rgba(28, 28, 30, 0.88) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.phone-widget-music-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.phone-widget-music-art {
+  width: 48px;
+  height: 48px;
+  background: rgba(45, 45, 48, 0.8);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+.phone-widget-music-icon {
+  font-size: 22px;
+  opacity: 0.5;
+}
+.phone-widget-music-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.phone-widget-music-header {
+  display: flex;
+  justify-content: flex-end;
+}
+.phone-widget-music-glyph {
+  color: #ff2d55;
+  font-size: 15px;
+  font-weight: 700;
+}
+.phone-widget-music-bars {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.phone-widget-music-bar-track {
+  width: 38%;
+  height: 100%;
+  background: #ff2d55;
+  border-radius: 3px;
+  opacity: 0.6;
+}
+.phone-widget-music-footer {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8e8e93;
+  text-align: center;
+}
+
+/* App Grid on Page 0 */
+.phone-app-grid--hero {
+  gap: 16px 8px !important;
+  margin-bottom: 24px;
+}
+
+.phone-app-icon-wrapper {
+  position: relative;
+  width: 58px !important;
+  height: 58px !important;
+  border-radius: 14px !important;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35) !important;
+  overflow: visible !important;
+}
+
+.phone-app-icon {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 14px !important;
+  display: block;
+}
+
+/* Red Notification Badges (Matching iOS spec) */
+.phone-app-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: #ff3b30;
+  color: #ffffff;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  z-index: 5;
+  border: 1.5px solid #160c28;
+}
+
+/* Page Dots */
+.phone-pagination-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 0;
+  margin-bottom: 12px;
+}
+.phone-page-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.32);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.phone-page-dot.is-active {
+  width: 7px;
+  height: 7px;
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+}
+
+/* Frosted Glass Springboard Dock */
+.phone-dock {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 22px;
+  height: 84px;
+  background: rgba(30, 30, 35, 0.65) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border-radius: 34px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  z-index: 40;
+}
+
+.phone-dock-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.phone-dock-btn:active {
+  transform: scale(0.9);
+}
+
+.phone-dock-icon-wrapper {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.phone-dock-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  display: block;
+}

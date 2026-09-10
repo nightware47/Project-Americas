@@ -581,120 +581,379 @@ function PhoneUI:BuildSpringboard(parent: Instance)
 	local D = PhoneTheme.Dimensions
 	local F = PhoneTheme.Fonts
 
-	local springboard = Instance.new("Frame")
+	local springboard = Instance.new("ScrollingFrame")
 	springboard.Name = "Springboard"
-	springboard.Size = UDim2.new(1, 0, 1, -(D.StatusBarHeight + D.DockHeight + 20))
-	springboard.Position = UDim2.new(0, 0, 0, D.StatusBarHeight + 8)
+	springboard.Size = UDim2.new(1, 0, 1, -(D.StatusBarHeight + D.DockHeight + 14))
+	springboard.Position = UDim2.new(0, 0, 0, D.StatusBarHeight + 4)
 	springboard.BackgroundTransparency = 1
+	springboard.ScrollBarThickness = 0
+	springboard.CanvasSize = UDim2.new(0, 0, 0, 480)
 	springboard.ZIndex = 10
 	springboard.Parent = parent
 	self.Springboard = springboard
 
-	-- Search Capsule (iOS Spotlight Pill)
-	local searchPill = Instance.new("TextButton")
-	searchPill.Name = "SpotlightPill"
-	searchPill.Size = UDim2.new(0, 96, 0, 26)
-	searchPill.AnchorPoint = Vector2.new(0.5, 0)
-	searchPill.Position = UDim2.new(0.5, 0, 0, 6)
-	searchPill.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-	searchPill.BackgroundTransparency = 0.3
-	searchPill.BorderSizePixel = 0
-	searchPill.Text = "🔍 Search"
-	searchPill.Font = F.Medium
-	searchPill.TextSize = 11
-	searchPill.TextColor3 = C.TextSecondary
-	searchPill.Parent = springboard
-	makeCorner(13, searchPill)
+	----------------------------------------------------------------------------
+	-- Top Row: Clock Widget (Left) + Weather Widget (Right) (2x2 square cards)
+	----------------------------------------------------------------------------
+	local topWidgets = Instance.new("Frame")
+	topWidgets.Name = "TopWidgetsRow"
+	topWidgets.Size = UDim2.new(1, -28, 0, 128)
+	topWidgets.AnchorPoint = Vector2.new(0.5, 0)
+	topWidgets.Position = UDim2.new(0.5, 0, 0, 8)
+	topWidgets.BackgroundTransparency = 1
+	topWidgets.Parent = springboard
 
-	-- 4-Column Grid Frame
+	-- Clock Widget Unit
+	local clockUnit = Instance.new("TextButton")
+	clockUnit.Name = "ClockWidgetUnit"
+	clockUnit.Size = UDim2.new(0.5, -7, 1, 0)
+	clockUnit.Position = UDim2.new(0, 0, 0, 0)
+	clockUnit.BackgroundTransparency = 1
+	clockUnit.Text = ""
+	clockUnit.Parent = topWidgets
+
+	local clockCard = Instance.new("Frame")
+	clockCard.Size = UDim2.new(1, 0, 0, 108)
+	clockCard.BackgroundColor3 = Color3.fromRGB(28, 28, 30)
+	clockCard.BorderSizePixel = 0
+	clockCard.Parent = clockUnit
+	makeCorner(20, clockCard)
+	makeStroke(Color3.fromRGB(255, 255, 255), 0.08, clockCard)
+
+	local clockDay = Instance.new("TextLabel")
+	clockDay.Size = UDim2.new(1, -20, 0, 16)
+	clockDay.Position = UDim2.new(0, 12, 0, 10)
+	clockDay.BackgroundTransparency = 1
+	clockDay.Text = "Thursday"
+	clockDay.Font = F.Medium
+	clockDay.TextSize = 12
+	clockDay.TextColor3 = Color3.fromRGB(142, 142, 147)
+	clockDay.TextXAlignment = Enum.TextXAlignment.Left
+	clockDay.Parent = clockCard
+
+	local clockTime = Instance.new("TextLabel")
+	clockTime.Size = UDim2.new(1, -20, 0, 32)
+	clockTime.Position = UDim2.new(0, 12, 0, 26)
+	clockTime.BackgroundTransparency = 1
+	clockTime.Text = "20:16"
+	clockTime.Font = F.LargeTitle
+	clockTime.TextSize = 28
+	clockTime.TextColor3 = Color3.fromRGB(255, 255, 255)
+	clockTime.TextXAlignment = Enum.TextXAlignment.Left
+	clockTime.Parent = clockCard
+
+	local clockDate = Instance.new("TextLabel")
+	clockDate.Size = UDim2.new(1, -20, 0, 28)
+	clockDate.Position = UDim2.new(0, 12, 0, 60)
+	clockDate.BackgroundTransparency = 1
+	clockDate.Text = "Thursday, September 10"
+	clockDate.Font = F.Medium
+	clockDate.TextSize = 10
+	clockDate.TextColor3 = Color3.fromRGB(142, 142, 147)
+	clockDate.TextXAlignment = Enum.TextXAlignment.Left
+	clockDate.TextWrapped = true
+	clockDate.Parent = clockCard
+
+	local clockLabel = Instance.new("TextLabel")
+	clockLabel.Size = UDim2.new(1, 0, 0, 16)
+	clockLabel.Position = UDim2.new(0, 0, 0, 110)
+	clockLabel.BackgroundTransparency = 1
+	clockLabel.Text = "Clock"
+	clockLabel.Font = F.Medium
+	clockLabel.TextSize = 11
+	clockLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	clockLabel.Parent = clockUnit
+
+	clockUnit.MouseButton1Click:Connect(function()
+		self:OpenApp("clock")
+	end)
+
+	-- Weather Widget Unit
+	local weatherUnit = Instance.new("TextButton")
+	weatherUnit.Name = "WeatherWidgetUnit"
+	weatherUnit.Size = UDim2.new(0.5, -7, 1, 0)
+	weatherUnit.Position = UDim2.new(0.5, 7, 0, 0)
+	weatherUnit.BackgroundTransparency = 1
+	weatherUnit.Text = ""
+	weatherUnit.Parent = topWidgets
+
+	local weatherCard = Instance.new("Frame")
+	weatherCard.Size = UDim2.new(1, 0, 0, 108)
+	weatherCard.BackgroundColor3 = Color3.fromRGB(28, 59, 112)
+	weatherCard.BorderSizePixel = 0
+	weatherCard.Parent = weatherUnit
+	makeCorner(20, weatherCard)
+	makeStroke(Color3.fromRGB(255, 255, 255), 0.15, weatherCard)
+
+	local wGrad = Instance.new("UIGradient")
+	wGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 65, 125)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 100, 170)),
+	})
+	wGrad.Rotation = 135
+	wGrad.Parent = weatherCard
+
+	local wCity = Instance.new("TextLabel")
+	wCity.Size = UDim2.new(1, -20, 0, 16)
+	wCity.Position = UDim2.new(0, 12, 0, 10)
+	wCity.BackgroundTransparency = 1
+	wCity.Text = "Los Santos"
+	wCity.Font = F.Headline
+	wCity.TextSize = 12
+	wCity.TextColor3 = Color3.fromRGB(255, 255, 255)
+	wCity.TextXAlignment = Enum.TextXAlignment.Left
+	wCity.Parent = weatherCard
+
+	local wTemp = Instance.new("TextLabel")
+	wTemp.Size = UDim2.new(1, -20, 0, 34)
+	wTemp.Position = UDim2.new(0, 12, 0, 24)
+	wTemp.BackgroundTransparency = 1
+	wTemp.Text = "24°"
+	wTemp.Font = F.LargeTitle
+	wTemp.TextSize = 30
+	wTemp.TextColor3 = Color3.fromRGB(255, 255, 255)
+	wTemp.TextXAlignment = Enum.TextXAlignment.Left
+	wTemp.Parent = weatherCard
+
+	local wDesc = Instance.new("TextLabel")
+	wDesc.Size = UDim2.new(1, -20, 0, 16)
+	wDesc.Position = UDim2.new(0, 12, 0, 62)
+	wDesc.BackgroundTransparency = 1
+	wDesc.Text = "⛅ Partly Cloudy"
+	wDesc.Font = F.Medium
+	wDesc.TextSize = 10
+	wDesc.TextColor3 = Color3.fromRGB(255, 255, 255)
+	wDesc.TextXAlignment = Enum.TextXAlignment.Left
+	wDesc.Parent = weatherCard
+
+	local wHl = Instance.new("TextLabel")
+	wHl.Size = UDim2.new(1, -20, 0, 14)
+	wHl.Position = UDim2.new(0, 12, 0, 78)
+	wHl.BackgroundTransparency = 1
+	wHl.Text = "H: 24° L: 13°"
+	wHl.Font = F.Caption1
+	wHl.TextSize = 9
+	wHl.TextColor3 = Color3.fromRGB(200, 220, 255)
+	wHl.TextXAlignment = Enum.TextXAlignment.Left
+	wHl.Parent = weatherCard
+
+	local weatherLabel = Instance.new("TextLabel")
+	weatherLabel.Size = UDim2.new(1, 0, 0, 16)
+	weatherLabel.Position = UDim2.new(0, 0, 0, 110)
+	weatherLabel.BackgroundTransparency = 1
+	weatherLabel.Text = "Weather"
+	weatherLabel.Font = F.Medium
+	weatherLabel.TextSize = 11
+	weatherLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	weatherLabel.Parent = weatherUnit
+
+	weatherUnit.MouseButton1Click:Connect(function()
+		self:OpenApp("weather")
+	end)
+
+	----------------------------------------------------------------------------
+	-- Second Row: Wide Music Widget (4x2 card)
+	----------------------------------------------------------------------------
+	local musicUnit = Instance.new("TextButton")
+	musicUnit.Name = "MusicWidgetUnit"
+	musicUnit.Size = UDim2.new(1, -28, 0, 96)
+	musicUnit.AnchorPoint = Vector2.new(0.5, 0)
+	musicUnit.Position = UDim2.new(0.5, 0, 0, 142)
+	musicUnit.BackgroundTransparency = 1
+	musicUnit.Text = ""
+	musicUnit.Parent = springboard
+
+	local musicCard = Instance.new("Frame")
+	musicCard.Size = UDim2.new(1, 0, 0, 76)
+	musicCard.BackgroundColor3 = Color3.fromRGB(28, 28, 30)
+	musicCard.BackgroundTransparency = 0.15
+	musicCard.BorderSizePixel = 0
+	musicCard.Parent = musicUnit
+	makeCorner(20, musicCard)
+	makeStroke(Color3.fromRGB(255, 255, 255), 0.08, musicCard)
+
+	local artBox = Instance.new("Frame")
+	artBox.Size = UDim2.new(0, 44, 0, 44)
+	artBox.Position = UDim2.new(0, 12, 0, 8)
+	artBox.BackgroundColor3 = Color3.fromRGB(45, 45, 48)
+	artBox.BorderSizePixel = 0
+	artBox.Parent = musicCard
+	makeCorner(10, artBox)
+
+	local artGlyph = Instance.new("TextLabel")
+	artGlyph.Size = UDim2.new(1, 0, 1, 0)
+	artGlyph.BackgroundTransparency = 1
+	artGlyph.Text = "🎵"
+	artGlyph.TextSize = 20
+	artGlyph.Parent = artBox
+
+	local noteGlyph = Instance.new("TextLabel")
+	noteGlyph.Size = UDim2.new(0, 20, 0, 20)
+	noteGlyph.AnchorPoint = Vector2.new(1, 0)
+	noteGlyph.Position = UDim2.new(1, -12, 0, 8)
+	noteGlyph.BackgroundTransparency = 1
+	noteGlyph.Text = "♫"
+	noteGlyph.Font = F.Bold
+	noteGlyph.TextSize = 16
+	noteGlyph.TextColor3 = Color3.fromRGB(255, 45, 85)
+	noteGlyph.Parent = musicCard
+
+	local barTrack = Instance.new("Frame")
+	barTrack.Size = UDim2.new(1, -84, 0, 4)
+	barTrack.Position = UDim2.new(0, 66, 0, 28)
+	barTrack.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+	barTrack.BorderSizePixel = 0
+	barTrack.Parent = musicCard
+	makeCorner(2, barTrack)
+
+	local barFill = Instance.new("Frame")
+	barFill.Size = UDim2.new(0.35, 0, 1, 0)
+	barFill.BackgroundColor3 = Color3.fromRGB(255, 45, 85)
+	barFill.BorderSizePixel = 0
+	barFill.Parent = barTrack
+	makeCorner(2, barFill)
+
+	local musicStatus = Instance.new("TextLabel")
+	musicStatus.Size = UDim2.new(1, 0, 0, 16)
+	musicStatus.Position = UDim2.new(0, 0, 1, -22)
+	musicStatus.BackgroundTransparency = 1
+	musicStatus.Text = "No recently played music"
+	musicStatus.Font = F.Medium
+	musicStatus.TextSize = 11
+	musicStatus.TextColor3 = Color3.fromRGB(142, 142, 147)
+	musicStatus.Parent = musicCard
+
+	local musicLabel = Instance.new("TextLabel")
+	musicLabel.Size = UDim2.new(1, 0, 0, 16)
+	musicLabel.Position = UDim2.new(0, 0, 0, 78)
+	musicLabel.BackgroundTransparency = 1
+	musicLabel.Text = "Music"
+	musicLabel.Font = F.Medium
+	musicLabel.TextSize = 11
+	musicLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	musicLabel.Parent = musicUnit
+
+	musicUnit.MouseButton1Click:Connect(function()
+		self:OpenApp("music")
+	end)
+
+	----------------------------------------------------------------------------
+	-- 8 Hero Springboard Apps (4 columns x 2 rows)
+	----------------------------------------------------------------------------
 	local gridFrame = Instance.new("Frame")
 	gridFrame.Name = "AppGrid"
-	gridFrame.Size = UDim2.new(1, -24, 1, -44)
-	gridFrame.Position = UDim2.new(0, 12, 0, 42)
+	gridFrame.Size = UDim2.new(1, -28, 0, 160)
+	gridFrame.AnchorPoint = Vector2.new(0.5, 0)
+	gridFrame.Position = UDim2.new(0.5, 0, 0, 246)
 	gridFrame.BackgroundTransparency = 1
 	gridFrame.Parent = springboard
 
 	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.new(0, D.IconSize, 0, D.IconSize + 18)
-	grid.CellPadding = UDim2.new(0, D.IconGridGapX, 0, D.IconGridGapY)
+	grid.CellSize = UDim2.new(0, 56, 0, 72)
+	grid.CellPadding = UDim2.new(0, 14, 0, 10)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = gridFrame
 
-	for idx, appDef in ipairs(PhoneTheme.Apps) do
-		if not appDef.Dock then
-			self:CreateAppIcon(appDef, gridFrame, idx)
+	-- Hero App IDs to populate on Page 0
+	local heroIds = { "calculator", "bank", "weather", "billing", "mail", "crypto", "notes", "memos" }
+	local heroSet = {}
+	for _, id in ipairs(heroIds) do heroSet[id] = true end
+
+	for idx, id in ipairs(heroIds) do
+		local appDef = nil
+		for _, a in ipairs(PhoneTheme.Apps) do
+			if a.Id == id then appDef = a; break end
+		end
+
+		if appDef then
+			local btn = Instance.new("TextButton")
+			btn.Name = "App_" .. appDef.Id
+			btn.BackgroundTransparency = 1
+			btn.Text = ""
+			btn.LayoutOrder = idx
+			btn.Parent = gridFrame
+
+			local iconWrap = Instance.new("Frame")
+			iconWrap.Size = UDim2.new(0, 52, 0, 52)
+			iconWrap.AnchorPoint = Vector2.new(0.5, 0)
+			iconWrap.Position = UDim2.new(0.5, 0, 0, 0)
+			iconWrap.BackgroundColor3 = appDef.BgColor
+			iconWrap.BorderSizePixel = 0
+			iconWrap.Parent = btn
+			makeCorner(13, iconWrap)
+
+			local glyph = Instance.new("TextLabel")
+			glyph.Size = UDim2.new(1, 0, 1, 0)
+			glyph.BackgroundTransparency = 1
+			glyph.Text = appDef.Glyph
+			glyph.TextSize = 24
+			glyph.Parent = iconWrap
+
+			if appDef.Badge and appDef.Badge > 0 then
+				local badge = Instance.new("TextLabel")
+				badge.Size = UDim2.new(0, 18, 0, 18)
+				badge.AnchorPoint = Vector2.new(1, 0)
+				badge.Position = UDim2.new(1, 4, 0, -4)
+				badge.BackgroundColor3 = Color3.fromRGB(255, 59, 48)
+				badge.BorderSizePixel = 0
+				badge.Text = tostring(appDef.Badge)
+				badge.Font = F.Bold
+				badge.TextSize = 11
+				badge.TextColor3 = Color3.fromRGB(255, 255, 255)
+				badge.ZIndex = 5
+				badge.Parent = iconWrap
+				makeCorner(9, badge)
+			end
+
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.new(1, 0, 0, 14)
+			label.AnchorPoint = Vector2.new(0.5, 1)
+			label.Position = UDim2.new(0.5, 0, 1, 0)
+			label.BackgroundTransparency = 1
+			label.Text = appDef.Name
+			label.Font = F.Medium
+			label.TextSize = 11
+			label.TextColor3 = Color3.fromRGB(255, 255, 255)
+			label.Parent = btn
+
+			btn.MouseButton1Click:Connect(function()
+				self:OpenApp(appDef.Id)
+			end)
 		end
 	end
-end
 
-function PhoneUI:CreateAppIcon(appDef: any, parent: Instance, order: number)
-	local C = PhoneTheme.Colors
-	local D = PhoneTheme.Dimensions
-	local F = PhoneTheme.Fonts
+	----------------------------------------------------------------------------
+	-- Page Dots (4 dots matching Sky Phone pagination)
+	----------------------------------------------------------------------------
+	local dots = Instance.new("Frame")
+	dots.Name = "PaginationDots"
+	dots.Size = UDim2.new(0, 50, 0, 10)
+	dots.AnchorPoint = Vector2.new(0.5, 0)
+	dots.Position = UDim2.new(0.5, 0, 0, 420)
+	dots.BackgroundTransparency = 1
+	dots.Parent = springboard
 
-	local item = Instance.new("TextButton")
-	item.Name = "App_" .. appDef.Id
-	item.Size = UDim2.new(0, D.IconSize, 0, D.IconSize + 18)
-	item.BackgroundTransparency = 1
-	item.Text = ""
-	item.LayoutOrder = order
-	item.Parent = parent
+	local dotsLayout = Instance.new("UIListLayout")
+	dotsLayout.FillDirection = Enum.FillDirection.Horizontal
+	dotsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	dotsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	dotsLayout.Padding = UDim.new(0, 6)
+	dotsLayout.Parent = dots
 
-	local squircle = Instance.new("Frame")
-	squircle.Name = "Squircle"
-	squircle.Size = UDim2.new(0, D.IconSize, 0, D.IconSize)
-	squircle.BackgroundColor3 = appDef.BgColor
-	squircle.BorderSizePixel = 0
-	squircle.Parent = item
-	makeCorner(D.IconRadius, squircle)
-
-	local glyph = Instance.new("TextLabel")
-	glyph.Size = UDim2.new(1, 0, 1, 0)
-	glyph.BackgroundTransparency = 1
-	glyph.Text = appDef.Glyph
-	glyph.Font = F.Bold
-	glyph.TextSize = 24
-	glyph.TextColor3 = Color3.fromRGB(255, 255, 255)
-	glyph.Parent = squircle
-
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1, 0, 0, 14)
-	label.Position = UDim2.new(0, 0, 1, -14)
-	label.BackgroundTransparency = 1
-	label.Text = appDef.Name
-	label.Font = F.Medium
-	label.TextSize = 10
-	label.TextColor3 = C.TextPrimary
-	label.Parent = item
-
-	if appDef.Badge and appDef.Badge > 0 then
-		local badge = Instance.new("Frame")
-		badge.Size = UDim2.new(0, D.BadgeSize, 0, D.BadgeSize)
-		badge.AnchorPoint = Vector2.new(1, 0)
-		badge.Position = UDim2.new(1, 4, 0, -4)
-		badge.BackgroundColor3 = C.SystemRed
-		badge.BorderSizePixel = 0
-		badge.Parent = squircle
-		makeCorner(9, badge)
-
-		local bText = Instance.new("TextLabel")
-		bText.Size = UDim2.new(1, 0, 1, 0)
-		bText.BackgroundTransparency = 1
-		bText.Font = F.Bold
-		bText.TextSize = 10
-		bText.TextColor3 = Color3.fromRGB(255, 255, 255)
-		bText.Text = tostring(appDef.Badge)
-		bText.Parent = badge
+	for i = 1, 4 do
+		local dot = Instance.new("Frame")
+		dot.Size = i == 1 and UDim2.new(0, 7, 0, 7) or UDim2.new(0, 6, 0, 6)
+		dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		dot.BackgroundTransparency = i == 1 and 0 or 0.65
+		dot.BorderSizePixel = 0
+		dot.Parent = dots
+		makeCorner(4, dot)
 	end
-
-	item.MouseButton1Click:Connect(function()
-		self:OpenApp(appDef.Id)
-	end)
 end
 
 --------------------------------------------------------------------------------
--- Frosted Glass Dock
+-- Bottom Dock
 --------------------------------------------------------------------------------
 function PhoneUI:BuildDock(parent: Instance)
 	local C = PhoneTheme.Colors

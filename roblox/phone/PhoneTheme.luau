@@ -126,18 +126,28 @@ PhoneTheme.Tweens = {
 
 -- Registry of Core Apps for Sky Phone
 PhoneTheme.Apps = {
-	{ Id = "phone",      Name = "Phone",      Glyph = "📞", BgColor = Color3.fromRGB(48, 209, 88),   Dock = true,  Badge = 0 },
-	{ Id = "messages",   Name = "Messages",   Glyph = "💬", BgColor = Color3.fromRGB(10, 132, 255),  Dock = true,  Badge = 2 },
-	{ Id = "bank",       Name = "Bank",       Glyph = "💳", BgColor = Color3.fromRGB(94, 92, 230),   Dock = true,  Badge = 0 },
-	{ Id = "settings",   Name = "Settings",   Glyph = "⚙️", BgColor = Color3.fromRGB(142, 142, 147), Dock = true,  Badge = 0 },
-	{ Id = "garage",     Name = "Garage",     Glyph = "🚗", BgColor = Color3.fromRGB(255, 69, 58),   Dock = false, Badge = 0 },
-	{ Id = "calculator", Name = "Calculator", Glyph = "🔢", BgColor = Color3.fromRGB(255, 159, 10),  Dock = false, Badge = 0 },
-	{ Id = "music",      Name = "Music",      Glyph = "🎵", BgColor = Color3.fromRGB(255, 45, 85),   Dock = false, Badge = 0 },
-	{ Id = "camera",     Name = "Camera",     Glyph = "📷", BgColor = Color3.fromRGB(60, 60, 68),    Dock = false, Badge = 0 },
-	{ Id = "notes",      Name = "Notes",      Glyph = "📝", BgColor = Color3.fromRGB(255, 214, 10),  Dock = false, Badge = 0 },
-	{ Id = "crypto",     Name = "Crypto",     Glyph = "📈", BgColor = Color3.fromRGB(175, 82, 222),  Dock = false, Badge = 0 },
-	{ Id = "maps",       Name = "Maps",       Glyph = "🗺️", BgColor = Color3.fromRGB(50, 180, 120),  Dock = false, Badge = 0 },
-	{ Id = "appstore",   Name = "App Store",  Glyph = "🛍️", BgColor = Color3.fromRGB(0, 122, 255),   Dock = false, Badge = 0 },
+	-- 8 Hero Springboard Apps (Page 0)
+	{ Id = "calculator", Name = "Calculator", Glyph = "🧮", BgColor = Color3.fromRGB(100, 210, 180), Dock = false, Badge = 0 },
+	{ Id = "bank",       Name = "Banking",    Glyph = "🏛️", BgColor = Color3.fromRGB(10, 132, 255),   Dock = false, Badge = 0 },
+	{ Id = "weather",    Name = "Weather",    Glyph = "⛅", BgColor = Color3.fromRGB(48, 176, 199),   Dock = false, Badge = 0 },
+	{ Id = "billing",    Name = "Billing",    Glyph = "🧾", BgColor = Color3.fromRGB(255, 105, 97),   Dock = false, Badge = 2 },
+	{ Id = "mail",       Name = "Mail",       Glyph = "✉️", BgColor = Color3.fromRGB(0, 122, 255),    Dock = false, Badge = 1 },
+	{ Id = "crypto",     Name = "VaultX",     Glyph = "💎", BgColor = Color3.fromRGB(88, 86, 214),    Dock = false, Badge = 0 },
+	{ Id = "notes",      Name = "Notes",      Glyph = "📝", BgColor = Color3.fromRGB(255, 214, 10),   Dock = false, Badge = 0 },
+	{ Id = "memos",      Name = "Memos",      Glyph = "🎙️", BgColor = Color3.fromRGB(28, 28, 30),     Dock = false, Badge = 0 },
+
+	-- 4 Dock Apps
+	{ Id = "phone",      Name = "Phone",      Glyph = "📞", BgColor = Color3.fromRGB(48, 209, 88),    Dock = true,  Badge = 0 },
+	{ Id = "messages",   Name = "Messages",   Glyph = "💬", BgColor = Color3.fromRGB(52, 199, 89),    Dock = true,  Badge = 0 },
+	{ Id = "camera",     Name = "Camera",     Glyph = "📷", BgColor = Color3.fromRGB(80, 80, 88),     Dock = true,  Badge = 0 },
+	{ Id = "clock",      Name = "Clock",      Glyph = "⏰", BgColor = Color3.fromRGB(36, 36, 40),     Dock = true,  Badge = 0 },
+
+	-- Secondary Apps
+	{ Id = "garage",     Name = "Garage",     Glyph = "🚗", BgColor = Color3.fromRGB(255, 69, 58),    Dock = false, Badge = 0 },
+	{ Id = "music",      Name = "Music",      Glyph = "🎵", BgColor = Color3.fromRGB(255, 45, 85),    Dock = false, Badge = 0 },
+	{ Id = "photos",     Name = "Photos",     Glyph = "🖼️", BgColor = Color3.fromRGB(255, 149, 0),    Dock = false, Badge = 0 },
+	{ Id = "maps",       Name = "Map",        Glyph = "🗺️", BgColor = Color3.fromRGB(50, 180, 120),   Dock = false, Badge = 0 },
+	{ Id = "settings",   Name = "Settings",   Glyph = "⚙️", BgColor = Color3.fromRGB(142, 142, 147),  Dock = false, Badge = 0 },
 }
 
 return PhoneTheme
