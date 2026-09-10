@@ -88,7 +88,7 @@ function App() {
   const [, setBindingVersion] = useState(0)
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [menuRevision, setMenuRevision] = useState(0)
-  const [phoneOpen, setPhoneOpen] = useState(false)
+  const [phoneOpen, setPhoneOpen] = useState(true)
 
   useEffect(() => {
     const unsub = bindingStore.subscribePath('UI.PhoneOpen', (val) => {
@@ -217,8 +217,8 @@ function App() {
                 </linearGradient>
               </defs>
             </svg>
-            <span className="ag-brand-title">Antigravity</span>
-            <span className="ag-pill-badge text-[10px]">Studio</span>
+            <span className="ag-brand-title">Project Americas</span>
+            <span className="ag-pill-badge text-[10px] bg-blue-500/20 text-blue-300 border-blue-500/30">Sky Phone</span>
           </div>
 
           <div className="ag-header-divider" />
