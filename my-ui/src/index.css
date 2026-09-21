@@ -322,6 +322,43 @@ button, [role="button"] {
   overflow: hidden;
 }
 
+/* Dedicated Sky Phone Studio Showcase */
+.phone-showcase-container {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(56, 75, 120, 0.22) 0%, rgba(13, 16, 26, 0.95) 70%, #080a0f 100%),
+    linear-gradient(180deg, #0f121a 0%, #090b10 100%);
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+.phone-showcase-backdrop-grid {
+  position: absolute;
+  inset: 0;
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  pointer-events: none;
+}
+
+.phone-showcase-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 24px;
+  position: relative;
+  z-index: 5;
+}
+
 .ag-center-workspace {
   display: flex;
   flex: 1;

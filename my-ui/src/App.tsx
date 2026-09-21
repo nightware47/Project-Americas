@@ -1,142 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
-import { RobloxRenderer } from './renderer/RobloxRenderer.tsx'
-import { previewEventAdapter } from './renderer/preview-handlers.ts'
-import { previewNetworkAdapter } from './renderer/preview-network.ts'
-import { createScenarioRunner } from './scenarios/scenario-runner.ts'
-import type { PlaybackSpeed, ScenarioPlaybackState } from './scenarios/scenario-runner.ts'
 import { createNervePreview } from './nerve/preview.ts'
-import { applyEffectPatches, createEffectPlayer } from './effects/roblox-effects.ts'
-import { applyBindings, createReactiveBindingStore } from './bindings/reactive-bindings.ts'
-import { createPreviewActions, createPreviewHandlers } from './actions/preview-actions.ts'
-import { compileRobloxProject } from './features/project-compiler.ts'
-import { PreviewFeature } from './features/preview-feature.ts'
-import { ShopFeature } from './features/shop-feature.ts'
-import { SettingsFeature } from './features/settings-feature.ts'
-import { createRobloxRuntimeContext } from './runtime/roblox-runtime.ts'
 import { createRobloxPersistence } from './persistence/roblox-persistence.ts'
-import { createRobloxRealm } from './realm/roblox-realm.ts'
-import { ScenarioInspector } from './scenarios/ScenarioInspector.tsx'
-import { ScenarioParameters } from './scenarios/ScenarioParameters.tsx'
-import { RobloxViewportPreview } from './viewport/RobloxViewportPreview.tsx'
-import { InventoryScreen } from './inventory/InventoryScreen.tsx'
 import { PhoneScreen } from './phone/PhoneScreen.tsx'
 import { LuauCodePreviewer } from './phone/luau/LuauCodePreviewer.tsx'
-import { setupLivingUiListeners, uiAudio } from './audio/ui-audio.ts'
+import { setupLivingUiListeners } from './audio/ui-audio.ts'
 
 function App() {
-  const bindingStore = useMemo(() => createReactiveBindingStore(), [])
-  const runtime = useMemo(() => createRobloxRuntimeContext(), [])
   const persistence = useMemo(() => createRobloxPersistence(), [])
-  const realm = useMemo(() => createRobloxRealm(persistence), [persistence])
   const nerve = useMemo(() => createNervePreview({ persistence }), [persistence])
-  const featureProject = useMemo(() => compileRobloxProject([PreviewFeature, ShopFeature, SettingsFeature]), [])
-  const compiledTree = featureProject.Tree
-  const effectPlayer = useMemo(
-    () => createEffectPlayer(compiledTree, featureProject.Effects),
-    [compiledTree, featureProject],
-  )
-  const [scenarioId, setScenarioId] = useState(featureProject.Scenarios[0].id)
-  const activeScenario =
-    featureProject.Scenarios.find((scenario) => scenario.id === scenarioId) ??
-    featureProject.Scenarios[0]
 
-  const scenarioRunner = useMemo(
-    () =>
-      createScenarioRunner({
-        nerve,
-        network: previewNetworkAdapter,
-        effects: effectPlayer,
-        bindings: bindingStore,
-        runtime,
-        persistence,
-        realm,
-      }),
-    [bindingStore, effectPlayer, nerve, persistence, realm, runtime],
-  )
-
-  const actions = useMemo(
-    () =>
-      createPreviewActions(
-        {
-          bindings: bindingStore,
-          effects: effectPlayer,
-          nerve,
-          network: previewNetworkAdapter,
-          persistence,
-          getTimeMs: () => scenarioRunner.getState().timeMs,
-          getTrace: scenarioRunner.getTrace,
-        },
-        featureProject.Actions,
-      ),
-    [bindingStore, effectPlayer, featureProject.Actions, nerve, persistence, scenarioRunner],
-  )
-
-  const previewHandlers = useMemo(
-    () =>
-      createPreviewHandlers(
-        actions,
-        featureProject.ActionBindings,
-        featureProject.EffectHooks,
-        effectPlayer,
-        () => scenarioRunner.getState().timeMs,
-      ),
-    [actions, effectPlayer, featureProject.ActionBindings, featureProject.EffectHooks, scenarioRunner],
-  )
-
-  const [playback, setPlayback] = useState<ScenarioPlaybackState>(scenarioRunner.getState())
-  const [effectPatches, setEffectPatches] = useState(effectPlayer.getPatches())
-  const [parameters, setParameters] = useState<Record<string, unknown>>({})
-  const [, setBindingVersion] = useState(0)
-  const [inspectorOpen, setInspectorOpen] = useState(false)
-  const [menuRevision, setMenuRevision] = useState(0)
   const [phoneOpen, setPhoneOpen] = useState(true)
   const [luauOpen, setLuauOpen] = useState(true)
   const [activePhoneApp, setActivePhoneApp] = useState('home')
-
-  useEffect(() => {
-    const unsub = bindingStore.subscribePath('UI.PhoneOpen', (val) => {
-      setPhoneOpen(Boolean(val))
-    })
-    return unsub
-  }, [bindingStore])
-
-  const renderedTree = applyEffectPatches(applyBindings(compiledTree, bindingStore), effectPatches)
-  // The browser menu replaces these legacy panels; their Roblox export templates remain available.
-  const browserTree = {
-    ...renderedTree,
-    Children: renderedTree.Children?.map(child => child.Name === 'GameModalsContainer' ? {
-      ...child, Children: child.Children?.filter(panel => !['InventoryPanelModal', 'QuestsPanelModal', 'StatsPanelModal', 'SettingsPanelModal'].includes(panel.Name ?? '')),
-    } : child),
-  }
-  const traceEvents = scenarioRunner.getTrace().events()
+  const [phoneKey, setPhoneKey] = useState(0)
 
   useEffect(() => {
     const cleanup = setupLivingUiListeners()
     return cleanup
   }, [])
 
-  const currentActivePanel = String(bindingStore.get('UI.ActivePanel') ?? 'None')
-  useEffect(() => {
-    if (currentActivePanel !== 'None') {
-      uiAudio.playModalOpen()
-    }
-  }, [currentActivePanel])
-
   useEffect(() => {
     const handleHotkeys = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return
       if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select')) return
-      if (event.code === 'KeyI') {
-        if (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]')) return
+      if (event.code === 'KeyP') {
         event.preventDefault()
-        void actions.run('TogglePanel', { Panel: 'Inventory' }).promise
-      } else if (event.code === 'KeyP') {
-        event.preventDefault()
-        setPhoneOpen((open) => {
-          const next = !open
-          bindingStore.set('UI.PhoneOpen', next)
-          return next
-        })
+        setPhoneOpen((open) => !open)
       } else if (event.code === 'KeyL') {
         event.preventDefault()
         setLuauOpen((open) => !open)
@@ -144,60 +33,24 @@ function App() {
     }
     window.addEventListener('keydown', handleHotkeys)
     return () => window.removeEventListener('keydown', handleHotkeys)
-  }, [actions, bindingStore])
+  }, [])
 
-  useEffect(() => {
-    scenarioRunner.start(activeScenario)
-    const playbackConnection = scenarioRunner.subscribe((state) => {
-      setPlayback(state)
-      setEffectPatches(effectPlayer.getPatches())
-    })
-    const bindingConnection = bindingStore.subscribe(() =>
-      setBindingVersion((version) => version + 1),
-    )
-    const moneyConnection = previewNetworkAdapter.Network.MoneyChanged.connect((payload) => {
-      console.info('Network.MoneyChanged.connect', payload.Amount)
-    })
-
-    void previewNetworkAdapter.Network.GetInventory.request({}).then((response) => {
-      console.info('Network.GetInventory.request', response.Items)
-    })
-
-    return () => {
-      moneyConnection()
-      playbackConnection()
-      bindingConnection()
-      actions.cancel()
-      scenarioRunner.stop()
-    }
-  }, [actions, activeScenario, bindingStore, effectPlayer, featureProject, nerve, scenarioId, scenarioRunner])
-
-  const handleScenarioChange = (nextId: string) => {
-    setScenarioId(nextId)
-    const nextScenario = featureProject.Scenarios.find((scenario) => scenario.id === nextId)
-    setParameters(
-      Object.fromEntries(
-        Object.entries(nextScenario?.parameters ?? {}).map(([name, definition]) => [
-          name,
-          definition.default,
-        ]),
-      ),
-    )
+  const resetPhone = () => {
+    setPhoneKey((k) => k + 1)
+    setActivePhoneApp('home')
   }
-
-  const timelinePercent = playback.durationMs > 0 ? (playback.timeMs / playback.durationMs) * 100 : 0
 
   return (
     <div className="ag-app-root">
-      {/* Top Application Bar - Google Antigravity Style */}
+      {/* Top Application Bar - Google Antigravity & Sky Phone Studio */}
       <header className="ag-top-bar">
-        {/* Left: Antigravity Brand & Scenario Switcher */}
+        {/* Left: Brand Logo & Title */}
         <div className="flex items-center gap-3">
           <div className="ag-brand">
             <svg
               className="ag-logo-glyph"
-              width="20"
-              height="20"
+              width="22"
+              height="22"
               viewBox="0 0 24 24"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -223,58 +76,48 @@ function App() {
                 </linearGradient>
               </defs>
             </svg>
-            <span className="ag-brand-title">Project Americas</span>
-            <span className="ag-pill-badge text-[10px] bg-blue-500/20 text-blue-300 border-blue-500/30">Sky Phone</span>
+            <span className="ag-brand-title">Sky Phone</span>
+            <span className="ag-pill-badge text-[10px] bg-blue-500/20 text-blue-300 border-blue-500/30 font-semibold">
+              Roblox Studio Pure Luau
+            </span>
           </div>
 
           <div className="ag-header-divider" />
 
-          {/* Scenario Selector */}
-          <div className="ag-select-wrapper">
-            <select
-              className="ag-select-field font-medium text-xs text-ag-text"
-              value={scenarioId}
-              onChange={(e) => handleScenarioChange(e.target.value)}
-              aria-label="Scenario"
-            >
-              {featureProject.Scenarios.map((scenario) => (
-                <option key={scenario.id} value={scenario.id}>
-                  {scenario.name}
-                </option>
-              ))}
-            </select>
+          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-400">
+            <span className="font-mono text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+              390 × 844
+            </span>
+            <span>•</span>
+            <span className="text-slate-400">iOS HIG Chassis</span>
+            <span>•</span>
+            <span className="text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+              Zero Pre-Baked GUI
+            </span>
           </div>
         </div>
 
         {/* Center: Live Status Readout */}
         <div className="ag-status-capsule hidden md:flex items-center gap-2">
-          <span
-            className={`ag-status-dot ${playback.playing ? 'dot-online animate-pulse' : 'dot-idle'}`}
-          />
-          <span className="ag-status-text font-semibold">
-            {playback.playing ? 'SIMULATING' : 'PAUSED'}
-          </span>
+          <span className="ag-status-dot dot-online animate-pulse" />
+          <span className="ag-status-text font-semibold">ONLINE</span>
           <span className="text-ag-border">•</span>
           <span className="ag-status-step font-mono text-ag-text-muted">
-            {playback.currentStep ?? 'Ready'}
+            App: <strong className="text-slate-200 capitalize">{activePhoneApp}</strong>
           </span>
           <span className="text-ag-border">•</span>
-          <span className="ag-status-time font-mono tabular-nums">
-            {Math.round(playback.timeMs)}ms / {playback.durationMs}ms
+          <span className="ag-status-time font-mono text-sky-400">
+            rbxassetid://82226915452893
           </span>
         </div>
 
-        {/* Right: Actions & Inspector Toggle */}
+        {/* Right: Controls */}
         <div className="flex items-center gap-2">
           <button
             type="button"
             className="ag-btn-secondary py-1 text-xs"
-            onClick={() => {
-              actions.cancel()
-              scenarioRunner.restart()
-              setMenuRevision(version => version + 1)
-            }}
-            title="Restart Scenario"
+            onClick={resetPhone}
+            title="Reset Phone to Home State"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -286,14 +129,9 @@ function App() {
           <button
             type="button"
             className={`ag-btn-secondary py-1 text-xs ${phoneOpen ? 'active text-blue-300 border-blue-500/50' : ''}`}
-            onClick={() => {
-              setPhoneOpen((open) => {
-                const next = !open
-                bindingStore.set('UI.PhoneOpen', next)
-                return next
-              })
-            }}
-            aria-label="Toggle Phone" title="Toggle Phone (Press P)"
+            onClick={() => setPhoneOpen((open) => !open)}
+            aria-label="Toggle Phone"
+            title="Toggle Phone Display (Press P)"
           >
             <span className="text-xs">📱</span>
             <span>Phone</span>
@@ -312,167 +150,41 @@ function App() {
             <span className="ag-pill-badge text-[10px] bg-sky-500/20 text-sky-300 border-sky-500/30">10 Modules</span>
             <kbd className="text-[9px] font-mono bg-slate-800/80 px-1 py-0.5 rounded text-slate-300 border border-slate-700">L</kbd>
           </button>
-
-          <button
-            type="button"
-            className={`ag-btn-secondary py-1 text-xs ${inspectorOpen ? 'active' : ''}`}
-            onClick={() => setInspectorOpen((prev) => !prev)}
-            title="Toggle Scenario Inspector"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <line x1="15" y1="3" x2="15" y2="21" />
-            </svg>
-            <span>Inspector</span>
-            <span className="ag-pill-badge">{traceEvents.length}</span>
-          </button>
         </div>
       </header>
 
-      {/* Main Workspace: Canvas Dock + Inspector Dock */}
+      {/* Main Workspace: Dedicated Phone Showcase + Luau Previewer Dock */}
       <main className="ag-main-workspace">
-        {/* Center Workspace Column */}
-        <div className="ag-center-workspace">
-          {/* Viewport Canvas Area */}
-          <RobloxViewportPreview runtime={runtime} device={parameters.Device}>
-            <RobloxRenderer
-              tree={browserTree}
-              Handlers={previewHandlers}
-              eventAdapter={previewEventAdapter}
-            />
-            <InventoryScreen key={`${scenarioId}-${menuRevision}`} panel={String(bindingStore.get('UI.ActivePanel') ?? 'None')} bindings={bindingStore} nerve={nerve}
-              onPanelChange={panel => bindingStore.set('UI.ActivePanel', panel)}
-              onClose={() => { void actions.run('ClosePanel', {}).promise }} />
-            {phoneOpen && (
-              <aside className="phone-stage">
-                <PhoneScreen
-                  nerve={nerve}
-                  onActiveAppChange={(appId) => setActivePhoneApp(appId)}
-                  onClose={() => {
-                    setPhoneOpen(false)
-                    bindingStore.set('UI.PhoneOpen', false)
-                  }}
-                />
-              </aside>
-            )}
-          </RobloxViewportPreview>
-
-          {/* Bottom Deck: Transport Controls & Parameters */}
-          <div className="ag-transport-dock">
-            {/* Playback Controls Row */}
-            <div className="ag-transport-row">
-              {/* Play / Pause / Step Controls */}
-              <div className="flex items-center gap-1.5">
-                {playback.playing ? (
-                  <button
-                    type="button"
-                    className="ag-btn-primary"
-                    onClick={() => scenarioRunner.pause()}
-                    title="Pause"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="6" y="4" width="4" height="16" rx="1" />
-                      <rect x="14" y="4" width="4" height="16" rx="1" />
-                    </svg>
-                    <span>Pause</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="ag-btn-primary"
-                    onClick={() => scenarioRunner.play()}
-                    title="Play"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                    <span>Play</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  className="ag-btn-secondary"
-                  onClick={() => scenarioRunner.stepForward()}
-                  title="Step forward"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="5 4 15 12 5 20 5 4" />
-                    <line x1="19" y1="5" x2="19" y2="19" />
-                  </svg>
-                  <span>Step</span>
-                </button>
-
-                {/* Playback Speed Pills */}
-                <div className="ag-speed-group">
-                  {([0.25, 0.5, 1, 2] as PlaybackSpeed[]).map((speed) => (
-                    <button
-                      key={speed}
-                      type="button"
-                      className={`ag-speed-pill ${playback.speed === speed ? 'active' : ''}`}
-                      onClick={() => scenarioRunner.setSpeed(speed)}
-                    >
-                      {speed}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Timeline Scrubber */}
-              <div className="ag-timeline-wrapper">
-                <div className="flex items-center justify-between text-[11px] text-ag-text-muted mb-1 font-mono">
-                  <span className="text-ag-text tabular-nums">{Math.round(playback.timeMs)}ms</span>
-                  <span className="ag-pill-badge text-[10px]">{playback.currentStep ?? 'Ready'}</span>
-                  <span className="tabular-nums">{playback.durationMs}ms</span>
-                </div>
-                <div className="ag-slider-track-container">
-                  <input
-                    className="ag-timeline-range"
-                    type="range"
-                    min="0"
-                    max={playback.durationMs}
-                    step="1"
-                    value={playback.timeMs}
-                    style={{
-                      background: `linear-gradient(to right, #3b82f6 ${timelinePercent}%, rgba(255, 255, 255, 0.1) ${timelinePercent}%)`,
-                    }}
-                    onChange={(event) => {
-                      actions.cancel()
-                      scenarioRunner.scrub(Number(event.target.value))
-                    }}
-                    aria-label="Scenario timeline"
-                  />
-                </div>
-              </div>
-
-              {/* Scenario Triggers */}
-              {activeScenario.triggers && activeScenario.triggers.length > 0 && (
-                <div className="ag-triggers-group">
-                  {activeScenario.triggers.map((trigger) => (
-                    <button
-                      key={trigger.id}
-                      type="button"
-                      className="ag-btn-secondary text-xs"
-                      onClick={() => scenarioRunner.trigger(trigger.id)}
-                    >
-                      <span className="ag-trigger-dot" />
-                      <span>{trigger.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+        {/* Center: Phone Showcase Stage */}
+        <div className="phone-showcase-container">
+          <div className="phone-showcase-backdrop-grid" />
+          {phoneOpen ? (
+            <div className="phone-showcase-stage">
+              <PhoneScreen
+                key={phoneKey}
+                nerve={nerve}
+                onActiveAppChange={(appId) => setActivePhoneApp(appId)}
+                onClose={() => setPhoneOpen(false)}
+              />
             </div>
-
-            {/* Scenario Parameters Tray */}
-            <ScenarioParameters
-              definitions={activeScenario.parameters ?? {}}
-              values={parameters}
-              onChange={(name, value) => {
-                scenarioRunner.setParameter(name, value)
-                setParameters(scenarioRunner.getParameters())
-              }}
-            />
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-4 text-center p-8 z-10">
+              <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-3xl shadow-xl">
+                📱
+              </div>
+              <h2 className="text-lg font-bold text-slate-200">Sky Phone is Closed</h2>
+              <p className="text-xs text-slate-400 max-w-sm">
+                Press <kbd className="font-mono bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-slate-300">P</kbd> or click below to launch the Roblox Studio phone.
+              </p>
+              <button
+                type="button"
+                className="ag-btn-primary text-xs px-4 py-2"
+                onClick={() => setPhoneOpen(true)}
+              >
+                Open Sky Phone
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right Dock: Luau Code Previewer */}
@@ -484,19 +196,6 @@ function App() {
             />
           </aside>
         )}
-
-        {/* Right Dock: Inspector */}
-        <ScenarioInspector
-          scenarioName={activeScenario.name}
-          playback={playback}
-          events={traceEvents}
-          bindings={bindingStore}
-          realm={realm}
-          effectPatches={effectPatches}
-          persistenceSnapshot={persistence.snapshot()}
-          isOpen={inspectorOpen}
-          onClose={() => setInspectorOpen(false)}
-        />
       </main>
     </div>
   )
