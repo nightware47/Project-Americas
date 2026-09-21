@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createNervePreview } from './nerve/preview.ts'
-import { createRobloxPersistence } from './persistence/roblox-persistence.ts'
-import { PhoneScreen } from './phone/PhoneScreen.tsx'
+import { RobloxPhoneScreen } from './phone/RobloxPhoneScreen.tsx'
 import { LuauCodePreviewer } from './phone/luau/LuauCodePreviewer.tsx'
+import { RobloxExplorerTree } from './phone/roblox/RobloxExplorerTree.tsx'
+import { createSkyPhoneInstanceTree } from './phone/roblox/roblox-sky-phone-tree.ts'
 import { setupLivingUiListeners } from './audio/ui-audio.ts'
 
 function App() {
-  const persistence = useMemo(() => createRobloxPersistence(), [])
-  const nerve = useMemo(() => createNervePreview({ persistence }), [persistence])
-
   const [phoneOpen, setPhoneOpen] = useState(true)
-  const [luauOpen, setLuauOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarTab, setSidebarTab] = useState<'luau' | 'explorer'>('luau')
   const [activePhoneApp, setActivePhoneApp] = useState('home')
   const [phoneKey, setPhoneKey] = useState(0)
 
@@ -28,17 +26,30 @@ function App() {
         setPhoneOpen((open) => !open)
       } else if (event.code === 'KeyL') {
         event.preventDefault()
-        setLuauOpen((open) => !open)
+        setSidebarTab('luau')
+        setSidebarOpen((open) => (sidebarTab === 'luau' ? !open : true))
+      } else if (event.code === 'KeyE') {
+        event.preventDefault()
+        setSidebarTab('explorer')
+        setSidebarOpen((open) => (sidebarTab === 'explorer' ? !open : true))
       }
     }
     window.addEventListener('keydown', handleHotkeys)
     return () => window.removeEventListener('keydown', handleHotkeys)
-  }, [])
+  }, [sidebarTab])
 
   const resetPhone = () => {
     setPhoneKey((k) => k + 1)
     setActivePhoneApp('home')
   }
+
+  // Generate the current live instance tree for the Explorer
+  const currentLiveTree = useMemo(() => {
+    return createSkyPhoneInstanceTree({
+      activeApp: activePhoneApp,
+      currentPage: 1,
+    })
+  }, [activePhoneApp])
 
   return (
     <div className="ag-app-root">
@@ -78,7 +89,7 @@ function App() {
             </svg>
             <span className="ag-brand-title">Sky Phone</span>
             <span className="ag-pill-badge text-[10px] bg-blue-500/20 text-blue-300 border-blue-500/30 font-semibold">
-              Roblox Studio Pure Luau
+              Roblox Studio 1:1 Pair
             </span>
           </div>
 
@@ -89,10 +100,10 @@ function App() {
               390 × 844
             </span>
             <span>•</span>
-            <span className="text-slate-400">iOS HIG Chassis</span>
+            <span className="text-slate-400">Roblox UI Engine</span>
             <span>•</span>
             <span className="text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-              Zero Pre-Baked GUI
+              Zero Pre-Baked GUI (Rule 10)
             </span>
           </div>
         </div>
@@ -103,7 +114,7 @@ function App() {
           <span className="ag-status-text font-semibold">ONLINE</span>
           <span className="text-ag-border">•</span>
           <span className="ag-status-step font-mono text-ag-text-muted">
-            App: <strong className="text-slate-200 capitalize">{activePhoneApp}</strong>
+            Active: <strong className="text-slate-200 capitalize">{activePhoneApp}</strong>
           </span>
           <span className="text-ag-border">•</span>
           <span className="ag-status-time font-mono text-sky-400">
@@ -140,8 +151,34 @@ function App() {
 
           <button
             type="button"
-            className={`ag-btn-secondary py-1 text-xs ${luauOpen ? 'active text-sky-300 border-sky-500/50' : ''}`}
-            onClick={() => setLuauOpen((open) => !open)}
+            className={`ag-btn-secondary py-1 text-xs ${sidebarOpen && sidebarTab === 'explorer' ? 'active text-purple-300 border-purple-500/50' : ''}`}
+            onClick={() => {
+              if (sidebarOpen && sidebarTab === 'explorer') {
+                setSidebarOpen(false)
+              } else {
+                setSidebarTab('explorer')
+                setSidebarOpen(true)
+              }
+            }}
+            aria-label="Toggle Studio Explorer"
+            title="Toggle Roblox Explorer Tree (Press E)"
+          >
+            <span className="text-xs">🗂️</span>
+            <span>Explorer</span>
+            <kbd className="text-[9px] font-mono bg-slate-800/80 px-1 py-0.5 rounded text-slate-300 border border-slate-700">E</kbd>
+          </button>
+
+          <button
+            type="button"
+            className={`ag-btn-secondary py-1 text-xs ${sidebarOpen && sidebarTab === 'luau' ? 'active text-sky-300 border-sky-500/50' : ''}`}
+            onClick={() => {
+              if (sidebarOpen && sidebarTab === 'luau') {
+                setSidebarOpen(false)
+              } else {
+                setSidebarTab('luau')
+                setSidebarOpen(true)
+              }
+            }}
             aria-label="Toggle Luau Code Previewer"
             title="Toggle Luau Code Previewer (Press L)"
           >
@@ -153,16 +190,15 @@ function App() {
         </div>
       </header>
 
-      {/* Main Workspace: Dedicated Phone Showcase + Luau Previewer Dock */}
+      {/* Main Workspace: Dedicated Phone Showcase + Luau / Explorer Dock */}
       <main className="ag-main-workspace">
-        {/* Center: Phone Showcase Stage */}
+        {/* Center: Phone Showcase Stage (Roblox UI Engine 1:1 Pair) */}
         <div className="phone-showcase-container">
           <div className="phone-showcase-backdrop-grid" />
           {phoneOpen ? (
             <div className="phone-showcase-stage">
-              <PhoneScreen
+              <RobloxPhoneScreen
                 key={phoneKey}
-                nerve={nerve}
                 onActiveAppChange={(appId) => setActivePhoneApp(appId)}
                 onClose={() => setPhoneOpen(false)}
               />
@@ -187,13 +223,58 @@ function App() {
           )}
         </div>
 
-        {/* Right Dock: Luau Code Previewer */}
-        {luauOpen && (
-          <aside className="ag-luau-dock">
-            <LuauCodePreviewer
-              activeAppId={activePhoneApp}
-              onClose={() => setLuauOpen(false)}
-            />
+        {/* Right Dock: Luau Code Previewer OR Roblox Explorer Tree */}
+        {sidebarOpen && (
+          <aside className="ag-luau-dock flex flex-col">
+            {/* Dock Tab Selector */}
+            <div className="flex items-center gap-2 p-2 bg-slate-900 border-b border-slate-800">
+              <button
+                type="button"
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
+                  sidebarTab === 'luau'
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+                onClick={() => setSidebarTab('luau')}
+              >
+                <span>📜</span>
+                <span>Luau Source (10 Modules)</span>
+              </button>
+              <button
+                type="button"
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
+                  sidebarTab === 'explorer'
+                    ? 'bg-purple-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+                onClick={() => setSidebarTab('explorer')}
+              >
+                <span>🗂️</span>
+                <span>Studio Explorer</span>
+              </button>
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                onClick={() => setSidebarOpen(false)}
+                title="Close Panel"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Dock Content */}
+            <div className="flex-1 overflow-hidden">
+              {sidebarTab === 'luau' ? (
+                <LuauCodePreviewer
+                  activeAppId={activePhoneApp}
+                  onClose={() => setSidebarOpen(false)}
+                />
+              ) : (
+                <div className="h-full p-2">
+                  <RobloxExplorerTree tree={currentLiveTree} />
+                </div>
+              )}
+            </div>
           </aside>
         )}
       </main>

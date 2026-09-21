@@ -68,6 +68,8 @@ const UI_COMPONENT_CLASS_NAMES = new Set([
   'UIStroke',
   'UIGradient',
   'UIListLayout',
+  'UIGridLayout',
+  'UIPageLayout',
   'UIAspectRatioConstraint',
   'UISizeConstraint',
   'UITextSizeConstraint',
@@ -348,6 +350,27 @@ function applyComponentStyles(children: RobloxInstanceJson[], style: CSSProperti
       const padding = read<RobloxUDim>(child, 'Padding')
       if (padding) style.gap = udimToCss(padding)
     }
+
+    if (child.ClassName === 'UIGridLayout') {
+      const cellSize = read<RobloxUDim2>(child, 'CellSize')
+      const cellPadding = read<RobloxUDim2>(child, 'CellPadding')
+      const horizontalAlignment = read<string>(child, 'HorizontalAlignment')
+      listLayout = {
+        FillDirection: 'Horizontal',
+        SortOrder: read<string>(child, 'SortOrder') === 'LayoutOrder' ? 'LayoutOrder' : 'Name',
+      }
+      style.display = 'grid'
+      if (cellSize) {
+        const colW = udimToCss(cellSize.X)
+        const rowH = udimToCss(cellSize.Y)
+        style.gridTemplateColumns = `repeat(auto-fill, minmax(${colW}, 1fr))`
+        style.gridAutoRows = rowH
+      }
+      if (cellPadding) {
+        style.gap = `${udimToCss(cellPadding.Y)} ${udimToCss(cellPadding.X)}`
+      }
+      style.justifyContent = horizontalAlignment === 'Center' ? 'center' : horizontalAlignment === 'Right' ? 'flex-end' : 'flex-start'
+    }
   }
 
   return listLayout
@@ -543,9 +566,10 @@ function renderInstance(instance: RobloxInstanceJson, context: RenderContext, ke
 
   if (className === 'ImageLabel') {
     const image = read<string>(instance, 'Image')
+    const scaleType = read<string>(instance, 'ScaleType')
     return (
       <div {...commonProps} key={key}>
-        {image ? <RobloxAssetImage reference={image} resolver={context.assetResolver} alt={instance.Name ?? ''} /> : null}
+        {image ? <RobloxAssetImage reference={image} resolver={context.assetResolver} alt={instance.Name ?? ''} scaleType={scaleType} /> : null}
         {renderedChildren}
       </div>
     )
@@ -553,13 +577,14 @@ function renderInstance(instance: RobloxInstanceJson, context: RenderContext, ke
 
   if (className === 'ImageButton') {
     const image = read<string>(instance, 'Image')
+    const scaleType = read<string>(instance, 'ScaleType')
     return (
       <button {...commonProps} key={key} type="button" onClick={(event) => {
         event.stopPropagation()
         commonProps.onClick?.()
         context.onInstanceActivated?.(instance)
       }}>
-        {image ? <RobloxAssetImage reference={image} resolver={context.assetResolver} alt={instance.Name ?? ''} /> : null}
+        {image ? <RobloxAssetImage reference={image} resolver={context.assetResolver} alt={instance.Name ?? ''} scaleType={scaleType} /> : null}
         {renderedChildren}
       </button>
     )
@@ -573,17 +598,26 @@ function renderInstance(instance: RobloxInstanceJson, context: RenderContext, ke
   )
 }
 
-function RobloxAssetImage({ reference, resolver, alt }: { reference: string; resolver: RobloxAssetResolver; alt: string }) {
+function RobloxAssetImage({ reference, resolver, alt, scaleType }: { reference: string; resolver: RobloxAssetResolver; alt: string; scaleType?: string }) {
   const [record, setRecord] = useState(() => resolver.resolve(reference, 'thumbnail'))
+  const objectFit = scaleType === 'Crop' ? 'cover' : scaleType === 'Stretch' ? 'fill' : 'contain'
   return (
     <img
       src={record.url}
       alt={alt}
       data-roblox-asset={record.canonical}
       data-roblox-asset-state={record.state}
-      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+      style={{ width: '100%', height: '100%', objectFit, display: 'block' }}
       onLoad={() => setRecord((current) => ({ ...current, state: 'ready' }))}
-      onError={() => setRecord((current) => ({ ...current, state: 'error', error: 'Asset failed to load' }))}
+      onError={(e) => {
+        const fallback = resolver.getFallback?.(reference)
+        if (fallback && e.currentTarget.src !== fallback) {
+          e.currentTarget.src = fallback
+          setRecord((current) => ({ ...current, state: 'ready', url: fallback }))
+        } else {
+          setRecord((current) => ({ ...current, state: 'error', error: 'Asset failed to load' }))
+        }
+      }}
     />
   )
 }
