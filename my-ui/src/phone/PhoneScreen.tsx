@@ -84,9 +84,10 @@ const defaultNotifications: PhoneNotificationItem[] = [
 type Props = {
   nerve: NervePreviewAdapter
   onClose?: () => void
+  onActiveAppChange?: (appId: string) => void
 }
 
-export function PhoneScreen({ nerve, onClose }: Props) {
+export function PhoneScreen({ nerve, onClose, onActiveAppChange }: Props) {
   const phone = nerve.GetService<PreviewPhoneService>('PhoneService')
   const [state, setState] = useState<PhoneState>(emptyState)
   const [activeApp, setActiveApp] = useState<PhoneApp>('home')
@@ -192,6 +193,7 @@ export function PhoneScreen({ nerve, onClose }: Props) {
   const launch = (app: PhoneApp) => {
     setNotice('')
     setActiveApp(app)
+    onActiveAppChange?.(app)
   }
 
   const selectContact = (contact: PhoneContact) => {
@@ -297,6 +299,9 @@ export function PhoneScreen({ nerve, onClose }: Props) {
 
       {/* Main Screen Viewport (Clipped display panel) */}
       <div className={`phone-screen ${state.settings.darkMode ? 'phone-screen--dark' : 'phone-screen--light'}`}>
+        {/* Official Restored Wallpaper */}
+        <div className="phone-screen-wallpaper" />
+
         {/* Dynamic Island sits at top center of display */}
         <PhoneDynamicIsland
           activeCall={call}

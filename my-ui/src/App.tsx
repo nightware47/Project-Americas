@@ -20,6 +20,7 @@ import { ScenarioParameters } from './scenarios/ScenarioParameters.tsx'
 import { RobloxViewportPreview } from './viewport/RobloxViewportPreview.tsx'
 import { InventoryScreen } from './inventory/InventoryScreen.tsx'
 import { PhoneScreen } from './phone/PhoneScreen.tsx'
+import { LuauCodePreviewer } from './phone/luau/LuauCodePreviewer.tsx'
 import { setupLivingUiListeners, uiAudio } from './audio/ui-audio.ts'
 
 function App() {
@@ -89,6 +90,8 @@ function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [menuRevision, setMenuRevision] = useState(0)
   const [phoneOpen, setPhoneOpen] = useState(true)
+  const [luauOpen, setLuauOpen] = useState(true)
+  const [activePhoneApp, setActivePhoneApp] = useState('home')
 
   useEffect(() => {
     const unsub = bindingStore.subscribePath('UI.PhoneOpen', (val) => {
@@ -134,6 +137,9 @@ function App() {
           bindingStore.set('UI.PhoneOpen', next)
           return next
         })
+      } else if (event.code === 'KeyL') {
+        event.preventDefault()
+        setLuauOpen((open) => !open)
       }
     }
     window.addEventListener('keydown', handleHotkeys)
@@ -296,6 +302,19 @@ function App() {
 
           <button
             type="button"
+            className={`ag-btn-secondary py-1 text-xs ${luauOpen ? 'active text-sky-300 border-sky-500/50' : ''}`}
+            onClick={() => setLuauOpen((open) => !open)}
+            aria-label="Toggle Luau Code Previewer"
+            title="Toggle Luau Code Previewer (Press L)"
+          >
+            <span className="text-xs">📜</span>
+            <span>Luau Code</span>
+            <span className="ag-pill-badge text-[10px] bg-sky-500/20 text-sky-300 border-sky-500/30">10 Modules</span>
+            <kbd className="text-[9px] font-mono bg-slate-800/80 px-1 py-0.5 rounded text-slate-300 border border-slate-700">L</kbd>
+          </button>
+
+          <button
+            type="button"
             className={`ag-btn-secondary py-1 text-xs ${inspectorOpen ? 'active' : ''}`}
             onClick={() => setInspectorOpen((prev) => !prev)}
             title="Toggle Scenario Inspector"
@@ -328,6 +347,7 @@ function App() {
               <aside className="phone-stage">
                 <PhoneScreen
                   nerve={nerve}
+                  onActiveAppChange={(appId) => setActivePhoneApp(appId)}
                   onClose={() => {
                     setPhoneOpen(false)
                     bindingStore.set('UI.PhoneOpen', false)
@@ -454,6 +474,16 @@ function App() {
             />
           </div>
         </div>
+
+        {/* Right Dock: Luau Code Previewer */}
+        {luauOpen && (
+          <aside className="ag-luau-dock">
+            <LuauCodePreviewer
+              activeAppId={activePhoneApp}
+              onClose={() => setLuauOpen(false)}
+            />
+          </aside>
+        )}
 
         {/* Right Dock: Inspector */}
         <ScenarioInspector

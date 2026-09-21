@@ -999,6 +999,29 @@ input:checked + .ag-switch-slider {
 }
 
 /* ==========================================================================
+   Docked Luau Code Previewer
+   ========================================================================== */
+
+.ag-luau-dock {
+  display: flex;
+  flex-direction: column;
+  width: 560px;
+  max-width: 55%;
+  flex-shrink: 0;
+  background-color: #0d1117;
+  border-left: 1px solid var(--ag-border);
+  overflow: hidden;
+  z-index: 25;
+}
+
+@media (max-width: 1024px) {
+  .ag-luau-dock {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* ==========================================================================
    Docked Inspector Sidebar
    ========================================================================== */
 
