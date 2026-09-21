@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { LUAU_MODULES, getModuleByAppId, type LuauModuleInfo } from './luau-modules-bundle.ts'
+import { RobloxStudioExplorer } from '../roblox/RobloxStudioExplorer.tsx'
 import './luau-previewer.css'
 
 interface Props {
@@ -120,11 +121,12 @@ function highlightLuauLine(line: string, query: string): (string | { type: strin
   return tokens
 }
 
-export function LuauCodePreviewer({ activeAppId, initialModuleId = 'chassis', onClose }: Props) {
+export function LuauCodePreviewer({ activeAppId, initialModuleId = 'client', onClose }: Props) {
+  // Default to 'client' matching the user's screenshot where SkyPhoneClient is selected
   const [selectedModuleId, setSelectedModuleId] = useState<string>(initialModuleId)
   const [searchQuery, setSearchQuery] = useState('')
   const [copied, setCopied] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string>('All')
+  const [explorerCollapsed, setExplorerCollapsed] = useState(false)
   const codeViewportRef = useRef<HTMLDivElement>(null)
 
   // React to activeAppId from the phone:
@@ -144,16 +146,6 @@ export function LuauCodePreviewer({ activeAppId, initialModuleId = 'chassis', on
   const lines = useMemo(() => {
     return selectedModule.code.split('\n')
   }, [selectedModule])
-
-  const categories = useMemo(() => {
-    const set = new Set(LUAU_MODULES.map((m) => m.category))
-    return ['All', ...Array.from(set)]
-  }, [])
-
-  const filteredModules = useMemo(() => {
-    if (selectedCategory === 'All') return LUAU_MODULES
-    return LUAU_MODULES.filter((m) => m.category === selectedCategory)
-  }, [selectedCategory])
 
   const handleCopyCode = async () => {
     try {
@@ -184,164 +176,158 @@ export function LuauCodePreviewer({ activeAppId, initialModuleId = 'chassis', on
 
   return (
     <div className="luau-previewer-root">
-      {/* Top Header */}
-      <header className="luau-previewer-header">
-        <div className="luau-previewer-title-area">
-          <div className="luau-previewer-logo" title="Luau 5.0+ Script-Only Architecture">
-            L
-          </div>
-          <div className="flex flex-col">
-            <span className="luau-previewer-title">Luau Code Previewer</span>
-            <span className="text-[10px] text-ag-text-muted">Pure Luau • Zero Pre-Baked GUI</span>
-          </div>
-
-          <div className="luau-module-selector-wrap">
-            <select
-              className="luau-module-select"
-              value={selectedModuleId}
-              onChange={(e) => setSelectedModuleId(e.target.value)}
-              aria-label="Select Luau Module"
-            >
-              {filteredModules.map((mod) => (
-                <option key={mod.id} value={mod.id}>
-                  {mod.filename} ({mod.linesCount} lines)
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="luau-previewer-actions">
-          <button
-            type="button"
-            className={`luau-action-btn ${copied ? 'is-success' : ''}`}
-            onClick={handleCopyCode}
-            title="Copy current Luau script to clipboard"
-          >
-            {copied ? (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                <span>Copied!</span>
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                <span>Copy Luau</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className="luau-action-btn"
-            onClick={handleDownloadFile}
-            title={`Download ${selectedModule.filename}`}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            <span>Download</span>
-          </button>
-
-          {onClose && (
-            <button
-              type="button"
-              className="luau-action-btn text-slate-400 hover:text-white"
-              onClick={onClose}
-              title="Close Luau Previewer"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Category Filter Pills */}
-      <nav className="luau-category-nav" aria-label="Luau module categories">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            className={`luau-category-pill ${selectedCategory === cat ? 'is-active' : ''}`}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat}
-          </button>
-        ))}
-      </nav>
-
-      {/* Secondary Meta Bar */}
-      <div className="luau-meta-bar">
-        <div className="luau-meta-left">
-          <span className="luau-meta-badge badge-category">{selectedModule.category}</span>
-          <span className="luau-meta-badge">{selectedModule.linesCount.toLocaleString()} lines</span>
-          <span className="luau-meta-badge">{(selectedModule.sizeBytes / 1024).toFixed(1)} KB</span>
-          {activeAppId && selectedModule.appIds.includes(activeAppId) && (
-            <span className="luau-meta-badge badge-sync" title="Synchronized with active phone app">
-              ⚡ App: {activeAppId}
-            </span>
-          )}
-        </div>
-
-        <div className="luau-search-box">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6e7681" strokeWidth="2" className="mr-1">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="text"
-            className="luau-search-input"
-            placeholder="Search code..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+      <div className="luau-previewer-body">
+        {/* Left Pane: Authentic Roblox Studio Explorer Tree */}
+        <aside
+          className={`luau-explorer-sidebar ${explorerCollapsed ? 'is-collapsed' : ''}`}
+          aria-label="Roblox Studio Explorer"
+        >
+          <RobloxStudioExplorer
+            selectedModuleId={selectedModuleId}
+            onSelectModule={(modId) => setSelectedModuleId(modId)}
+            showTitleBar={true}
           />
-        </div>
-      </div>
+        </aside>
 
-      {/* Module Description */}
-      <div className="luau-module-desc">
-        <strong>{selectedModule.name}:</strong> {selectedModule.description}
-      </div>
-
-      {/* Code Viewport with Line Numbers and Syntax Highlighting */}
-      <div className="luau-code-viewport" ref={codeViewportRef}>
-        <div className="luau-code-table">
-          {lines.map((rawLine, idx) => {
-            const lineNum = idx + 1
-            const tokens = highlightLuauLine(rawLine, searchQuery)
-            const hasQuery = searchQuery.trim().length > 0 && rawLine.toLowerCase().includes(searchQuery.toLowerCase())
-
-            return (
-              <div key={lineNum} className={`luau-line-row ${hasQuery ? 'is-highlighted' : ''}`}>
-                <div className="luau-line-num">{lineNum}</div>
-                <div className="luau-line-content">
-                  {tokens.map((tok, tIdx) => {
-                    if (typeof tok === 'string') {
-                      return <span key={tIdx}>{tok}</span>
-                    }
-                    return (
-                      <span key={tIdx} className={`tok-${tok.type}`}>
-                        {tok.text}
-                      </span>
-                    )
-                  })}
-                </div>
+        {/* Right Pane: Roblox Studio Script Editor */}
+        <div className="luau-editor-pane">
+          {/* Top Script Tabs Bar */}
+          <div className="luau-tabs-bar">
+            <div className="luau-tabs-group">
+              <div className="luau-tab-item">
+                <span className="text-xs">
+                  {selectedModule.id === 'client' ? '💻' : '📜'}
+                </span>
+                <span>{selectedModule.filename}</span>
               </div>
-            )
-          })}
+            </div>
+
+            <div className="luau-tab-actions">
+              {/* Explorer Toggle Button */}
+              <button
+                type="button"
+                className={`luau-tab-btn ${!explorerCollapsed ? 'is-active' : ''}`}
+                onClick={() => setExplorerCollapsed((c) => !c)}
+                title={explorerCollapsed ? 'Show Roblox Studio Explorer' : 'Hide Roblox Studio Explorer'}
+              >
+                <span>🗂️</span>
+                <span className="hidden sm:inline">Explorer</span>
+              </button>
+
+              <button
+                type="button"
+                className={`luau-tab-btn ${copied ? 'is-success' : ''}`}
+                onClick={handleCopyCode}
+                title="Copy current Luau script to clipboard"
+              >
+                {copied ? (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    <span>Copy</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                className="luau-tab-btn"
+                onClick={handleDownloadFile}
+                title={`Download ${selectedModule.filename}`}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Download</span>
+              </button>
+
+              {onClose && (
+                <button
+                  type="button"
+                  className="luau-tab-btn text-slate-400 hover:text-white"
+                  onClick={onClose}
+                  title="Close Panel"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Secondary Meta Bar */}
+          <div className="luau-meta-bar">
+            <div className="luau-meta-left">
+              <span className="luau-meta-badge badge-category">{selectedModule.category}</span>
+              <span className="luau-meta-badge">{selectedModule.linesCount.toLocaleString()} lines</span>
+              <span className="luau-meta-badge">{(selectedModule.sizeBytes / 1024).toFixed(1)} KB</span>
+              {activeAppId && selectedModule.appIds.includes(activeAppId) && (
+                <span className="luau-meta-badge badge-sync" title="Synchronized with active phone app">
+                  ⚡ App: {activeAppId}
+                </span>
+              )}
+            </div>
+
+            <div className="luau-search-box">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6e7681" strokeWidth="2" className="mr-1">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                className="luau-search-input"
+                placeholder="Search code..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Module Description */}
+          <div className="luau-module-desc">
+            <strong>{selectedModule.name}:</strong> {selectedModule.description}
+          </div>
+
+          {/* Code Viewport with Line Numbers and Syntax Highlighting */}
+          <div className="luau-code-viewport" ref={codeViewportRef}>
+            <div className="luau-code-table">
+              {lines.map((rawLine, idx) => {
+                const lineNum = idx + 1
+                const tokens = highlightLuauLine(rawLine, searchQuery)
+                const hasQuery = searchQuery.trim().length > 0 && rawLine.toLowerCase().includes(searchQuery.toLowerCase())
+
+                return (
+                  <div key={lineNum} className={`luau-line-row ${hasQuery ? 'is-highlighted' : ''}`}>
+                    <div className="luau-line-num">{lineNum}</div>
+                    <div className="luau-line-content">
+                      {tokens.map((tok, tIdx) => {
+                        if (typeof tok === 'string') {
+                          return <span key={tIdx}>{tok}</span>
+                        }
+                        return (
+                          <span key={tIdx} className={`tok-${tok.type}`}>
+                            {tok.text}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
-

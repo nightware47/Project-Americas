@@ -10,6 +10,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarTab, setSidebarTab] = useState<'luau' | 'explorer'>('luau')
   const [activePhoneApp, setActivePhoneApp] = useState('home')
+  const [selectedModuleId, setSelectedModuleId] = useState('client')
   const [phoneKey, setPhoneKey] = useState(0)
 
   useEffect(() => {
@@ -267,11 +268,19 @@ function App() {
               {sidebarTab === 'luau' ? (
                 <LuauCodePreviewer
                   activeAppId={activePhoneApp}
+                  initialModuleId={selectedModuleId}
                   onClose={() => setSidebarOpen(false)}
                 />
               ) : (
                 <div className="h-full p-2">
-                  <RobloxExplorerTree tree={currentLiveTree} />
+                  <RobloxExplorerTree
+                    tree={currentLiveTree}
+                    selectedModuleId={selectedModuleId}
+                    onSelectModule={(modId) => {
+                      setSelectedModuleId(modId)
+                      setSidebarTab('luau')
+                    }}
+                  />
                 </div>
               )}
             </div>

@@ -1,12 +1,15 @@
 // src/phone/roblox/RobloxExplorerTree.tsx
 // Interactive Roblox Studio Explorer Window
-// Inspects the live Roblox UI Instance Tree matching Roblox Studio Explorer 1:1
+// Supports both Rule 10 StarterGui Scripts Hierarchy and PlayerGui Live Runtime Tree
 
 import { useState } from 'react'
 import type { RobloxInstanceJson } from '../../renderer/RobloxRenderer.tsx'
+import { RobloxStudioExplorer } from './RobloxStudioExplorer.tsx'
 
 type Props = {
   tree: RobloxInstanceJson
+  selectedModuleId?: string
+  onSelectModule?: (moduleId: string) => void
 }
 
 const CLASS_ICONS: Record<string, string> = {
@@ -91,36 +94,73 @@ function InstanceNode({
   )
 }
 
-export function RobloxExplorerTree({ tree }: Props) {
+export function RobloxExplorerTree({ tree, selectedModuleId = 'client', onSelectModule }: Props) {
+  const [explorerMode, setExplorerMode] = useState<'starter_gui' | 'player_gui'>('starter_gui')
   const [selectedNode, setSelectedNode] = useState<string | null>('Screen')
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
-      {/* Explorer Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-slate-900 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">🗂️</span>
-          <span className="text-xs font-bold text-slate-200 tracking-wide">Studio Explorer</span>
-          <span className="text-[10px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded font-mono border border-blue-500/30">
-            Live Instances
-          </span>
+    <div className="flex flex-col h-full bg-[#232527] border border-[#303338] rounded-xl overflow-hidden shadow-2xl">
+      {/* Explorer Mode Switcher Header */}
+      <div className="flex items-center justify-between px-3 py-2 bg-[#2c2e33] border-b border-[#1c1d20]">
+        <div className="flex items-center gap-1 bg-[#1a1b1e] p-1 rounded-md border border-[#383c44]">
+          <button
+            type="button"
+            className={`px-2.5 py-1 text-xs font-semibold rounded transition-colors ${
+              explorerMode === 'starter_gui'
+                ? 'bg-[#005fb8] text-white shadow'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            onClick={() => setExplorerMode('starter_gui')}
+            title="Rule 10: StarterGui (Pure Luau Scripts Only)"
+          >
+            StarterGui (Rule 10)
+          </button>
+          <button
+            type="button"
+            className={`px-2.5 py-1 text-xs font-semibold rounded transition-colors ${
+              explorerMode === 'player_gui'
+                ? 'bg-[#005fb8] text-white shadow'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            onClick={() => setExplorerMode('player_gui')}
+            title="Live Runtime PlayerGui In-Engine GUI Tree"
+          >
+            PlayerGui (Live)
+          </button>
         </div>
-        <span className="text-[10px] text-slate-400 font-mono">1:1 Pair</span>
+
+        <span className="text-[10px] text-slate-400 font-mono">Roblox Studio 1:1</span>
       </div>
 
-      {/* Instance Tree Content */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-0.5 custom-scrollbar">
-        <InstanceNode
-          instance={tree}
-          selectedNode={selectedNode}
-          onSelect={setSelectedNode}
-        />
+      {/* Explorer Content */}
+      <div className="flex-1 overflow-hidden">
+        {explorerMode === 'starter_gui' ? (
+          <RobloxStudioExplorer
+            selectedModuleId={selectedModuleId}
+            onSelectModule={(modId) => {
+              if (onSelectModule) {
+                onSelectModule(modId)
+              }
+            }}
+            showTitleBar={true}
+          />
+        ) : (
+          <div className="h-full overflow-y-auto p-2 space-y-0.5 custom-scrollbar bg-slate-950">
+            <InstanceNode
+              instance={tree}
+              selectedNode={selectedNode}
+              onSelect={setSelectedNode}
+            />
+          </div>
+        )}
       </div>
 
       {/* Footer Info */}
-      <div className="px-3 py-2 bg-slate-900/80 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-        <span>Roblox UI Engine (pure Luau semantics)</span>
-        <span className="font-mono text-blue-400">UDim2 • Color3</span>
+      <div className="px-3 py-1.5 bg-[#1e2023] border-t border-[#18191c] text-[11px] text-slate-400 flex items-center justify-between">
+        <span>{explorerMode === 'starter_gui' ? 'Pure Luau Architecture' : 'Roblox UI Engine (UDim2)'}</span>
+        <span className="font-mono text-sky-400">
+          {explorerMode === 'starter_gui' ? '10 Modules • 0 Pre-Baked GUI' : 'Dynamic Runtime'}
+        </span>
       </div>
     </div>
   )
